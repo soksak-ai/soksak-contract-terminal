@@ -79,9 +79,9 @@ or if the reasoning cites nothing at all).
 
 | unit | fixtures | performance floor |
 | --- | --- | --- |
-| `soksak-sidecar-terminal-alacritty` | 7 / 7 | ok |
 | `soksak-sidecar-terminal-vt100` | 7 / 7 (on the fork that adds DEC Special Graphics) | ok |
-| `soksak-sidecar-terminal-ghostty` | 7 / 7 | **under** |
+| `soksak-sidecar-terminal-alacritty` | 7 / 7 | ok |
+| `soksak-sidecar-terminal-ghostty` | 7 / 7 | ok (close to the line) |
 | `soksak-sidecar-terminal-wezterm` | 7 / 7 (on the fork that makes a wide character obey DECAWM at the margin) | **under** |
 
 Both of the engines standing on a fork are there because this suite found a real defect in
@@ -92,9 +92,10 @@ a restore paint that turned alternate scroll **off** in the user's terminal for 
 that had never mentioned it — because the contract's idea of a fresh terminal had been read off
 an engine. SPEC.md §13 has them all, with the reasoning.
 
-Two units are below the performance floor (SPEC.md §14.3). The floor is what the front-end
-terminal consumes, and those two mirrors are slower than the terminal they mirror — so in a
-sustained flood the daemon drops their bytes. The standard does not move for them.
+One unit is below the performance floor (SPEC.md §14.3), and it was not inferred — it was
+reproduced: held at its own feed rate, a tee subscriber lost 4.6 MB of a 67 MB flood. With the
+app closed and a session dumping output, that mirror is missing part of the scrollback it exists
+to restore. The standard does not move for it.
 
 ## The gate
 
@@ -115,10 +116,19 @@ other candidates in the room is a judgement the candidates have a hand in.
 The floor used to be 50 MB/s, sitting just under the slowest unit, with a second guard that
 compared the candidates to each other. Both numbers were the candidates', not the contract's.
 
-The budgets are derived from one requirement: *the mirror must not be the reason a tee gap
-happens*. The provider owner floor is the independently measured detached daemon tee demand.
-Installed-system tests then require zero gap and final marker delivery through the complete
-composition path. No candidate comparison determines the contract.
+The budgets are now derived from the one requirement there is — *the mirror must not be the
+reason a tee gap happens*. Turning that into a number takes one fact, and it is a fact about the
+daemon, not the mirror: the daemon pauses reading the pty only while a front end is **attached**
+and behind. With the app open, the front end paces the river and everything is easy (the core's
+own gate measures 3.3–4.6 MB/s end to end). With the app **closed** — the mode the mirror exists
+for — nothing paces it at all, and a mirror slower than the daemon's tee delivery simply loses
+bytes.
+
+So the floor is the daemon's detached tee delivery rate, measured on the machine, against a
+**real** `soksak-ptyd` (`src/daemon_demand.rs`). No coefficient: the mirror must be at least as
+fast as the thing feeding it. A composition gate includes daemon synchronization, frame queuing,
+rendering, IPC, and acknowledgement. Estimates that omitted those costs overstated throughput by
+2.4× and about 25×, so only the installed composition path is acceptance evidence.
 
 ## No default unit
 

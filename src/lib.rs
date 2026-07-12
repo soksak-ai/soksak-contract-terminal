@@ -18,7 +18,7 @@
 
 pub mod bench;
 pub mod corpus;
-pub mod demand;
+pub mod daemon_demand;
 pub mod golden;
 pub mod state;
 
