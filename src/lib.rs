@@ -16,6 +16,7 @@
 //!      자기-일관 오류도 숨지 못한다.
 //!   3. **재생 가드** — 위 과정에서 PTY 로 나간 바이트 0, 재생 페인트에 질의 바이트 0.
 
+pub mod bench;
 pub mod corpus;
 pub mod golden;
 pub mod state;
