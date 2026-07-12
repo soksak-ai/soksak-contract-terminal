@@ -73,6 +73,21 @@ suite also found a bug in the *mirror's own serializer* — a style left active 
 break, which bleeds colour on any terminal that erases with the current background. SPEC.md
 §13 has all three, with the reasoning.
 
+## Performance is a floor, not a ranking
+
+The suite also measures every unit on one corpus through the same trait — feed throughput, the
+cost of the rehydrate paint and the cold checkpoint, and the memory a mirror holds with its
+scrollback window full. The budgets in SPEC.md §14 are a floor: a terminal's real output peaks
+at a few megabytes per second and the slowest unit consumes the corpus at seventy, so the
+differences between the units vanish into the headroom. The table catches an order-of-magnitude
+regression; it does not crown anyone.
+
+**The default unit is `soksak-sidecar-terminal-alacritty`, and it is not the fastest one.** The
+reason is supply chain: its engine is a published, first-party crate, while two of the others
+run on local forks that close defects this suite found, and one runs on a pinned commit of a
+library whose authors call its API unstable. Speed does not discriminate between them at the
+rates a terminal actually produces. What we depend on does.
+
 ## Licensing
 
 The contract bundles no engine and depends on none, so it carries no engine's license.

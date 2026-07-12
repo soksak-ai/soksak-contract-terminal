@@ -318,3 +318,68 @@ pub fn table(reports: &[Report]) -> String {
     }
     out
 }
+
+// ── 예산 — 합격 게이트(SPEC.md §14.2) ────────────────────────────────────────
+// 이 숫자는 요구 자체가 아니다: 요구는 "자릿수 퇴행 금지"이고, 이 값은 오늘의 데스크톱 CPU 에서
+// 그것이 뜻하는 바다. 어겼다면 약화시키지 말고 원인을 찾거나(퇴행) 재보정하라(하드웨어).
+
+/// feed 절대 하한(MB/s). 실 PTY 는 몇 MB/s 라 여기서 스무 배 넘게 여유가 있다.
+pub const BUDGET_FEED_MB_S: f64 = 50.0;
+/// feed 상대 가드 — 같은 실행의 최고 유닛 대비 이 비율 미만이면 불합격.
+pub const BUDGET_FEED_RELATIVE: f64 = 0.25;
+/// rehydrate·cold 지연(ms)과 산출 크기(바이트). 이 축은 엔진이 아니라 직렬화기를 잰다.
+pub const BUDGET_PAINT_MS: f64 = 5.0;
+pub const BUDGET_PAINT_BYTES: usize = 2 * 1024 * 1024;
+/// 스크롤백 창을 채운 미러 하나의 상주 메모리 증가분. heap 은 게이트가 아니다(0 이 정상일 수 있다).
+pub const BUDGET_RSS_BYTES: usize = 32 * 1024 * 1024;
+
+/// 한 유닛의 절대 예산. 어기면 패닉한다 — 벤치가 곧 게이트다.
+pub fn assert_within_budget(r: &Report) {
+    let u = &r.unit;
+    assert!(
+        r.feed_mb_s >= BUDGET_FEED_MB_S,
+        "{u}: feed {:.1} MB/s < 예산 {BUDGET_FEED_MB_S} MB/s",
+        r.feed_mb_s
+    );
+    assert!(
+        r.rehydrate_ms <= BUDGET_PAINT_MS,
+        "{u}: rehydrate {:.2} ms > 예산 {BUDGET_PAINT_MS} ms (직렬화기 퇴행)",
+        r.rehydrate_ms
+    );
+    assert!(
+        r.paint_bytes <= BUDGET_PAINT_BYTES,
+        "{u}: 페인트 {} B > 예산 {BUDGET_PAINT_BYTES} B",
+        r.paint_bytes
+    );
+    assert!(
+        r.cold_ms <= BUDGET_PAINT_MS,
+        "{u}: cold {:.2} ms > 예산 {BUDGET_PAINT_MS} ms (직렬화기 퇴행)",
+        r.cold_ms
+    );
+    assert!(
+        r.cold_bytes <= BUDGET_PAINT_BYTES,
+        "{u}: 봉인 {} B > 예산 {BUDGET_PAINT_BYTES} B",
+        r.cold_bytes
+    );
+    assert!(
+        r.rss_bytes <= BUDGET_RSS_BYTES,
+        "{u}: rss {} B > 예산 {BUDGET_RSS_BYTES} B",
+        r.rss_bytes
+    );
+}
+
+/// 상대 가드 — 한 실행에 모인 유닛들끼리만 볼 수 있다(그래서 표가 강제한다). 절대 하한만 두면
+/// 느린 기계에서 위양성이 나고, 상대만 두면 전 유닛이 함께 퇴행할 때 아무도 못 잡는다.
+pub fn assert_relative_budget(reports: &[Report]) {
+    let best = reports.iter().map(|r| r.feed_mb_s).fold(0.0_f64, f64::max);
+    for r in reports {
+        assert!(
+            r.feed_mb_s >= best * BUDGET_FEED_RELATIVE,
+            "{}: feed {:.1} MB/s < 같은 실행 최고({:.1})의 {:.0}%",
+            r.unit,
+            r.feed_mb_s,
+            best,
+            BUDGET_FEED_RELATIVE * 100.0
+        );
+    }
+}
