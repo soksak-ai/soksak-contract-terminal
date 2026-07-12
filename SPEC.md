@@ -584,85 +584,107 @@ path (§6.2). It is loud, never silent — but a mirror that gaps is a mirror th
 screen it exists to keep. And no queue depth saves a *sustained* deficit: if the mirror is
 slower than what feeds it, a long enough flood always overflows.
 
-### 14.1 What actually feeds the mirror — the demand, measured
+The requirement is one sentence. Turning it into a number takes a fact, and the fact is not
+about the mirror at all — it is about **what paces the thing that feeds the mirror**. §14.1
+measures it, in both of the modes the system actually runs in.
 
-Three rates matter, and only the third one is the requirement.
+### 14.1 What actually feeds the mirror — measured, in both modes
 
-**The PTY ceiling.** The fastest the OS can carry bytes through a pty at all. No producer can
-beat it — anything that has to *compute* what it prints loses to a `cat` that merely copies
-bytes it already has. Measured here: **≈ 200–240 MB/s**.
+The requirement resolves to a number only once you know **what paces the daemon's read loop**.
+The daemon reads the pty, appends to the ring, copies into each tee subscriber's buffer, and
+writes to the attached front end. Of those, exactly one can slow it down, and the source says
+so in one line (`soksak-ptyd`, the output reader):
 
-**The tee pipe.** The mirror does not eat the pty; it eats the tee, and every byte reaches it
-through the path §6.2 specifies: pty read → ring → length-prefixed frame → unix socket →
-sidecar read. Standing that pipe up (`src/demand.rs`, no daemon crate, no engine, no VT)
-gives **≈ 190 MB/s**. Note what this number means: **the pipe is faster than any VT parser
-that has ever existed.** A budget of "beat the pipe" would be a budget no implementation can
-meet — a category error, not a strict standard.
+```
+while st.paused && st.attached.is_some() { st = session.cv.wait(st).unwrap(); }
+```
 
-**The front-end terminal — this is the demand.** The daemon's read loop writes to the
-attached front end and *pauses reading the pty* when the front end is `HIGH_WATERMARK` bytes
-behind. The river's speed is therefore set by neither the kernel nor the mirror: **it is set
-by the terminal the user is looking at.** The requirement follows exactly:
+It pauses only while a front end is **attached** and behind by `HIGH_WATERMARK`. The tee is
+never a brake — a subscriber that falls behind loses bytes as a recorded gap (§6.2). So the
+answer differs by mode, and the contract has to look at both.
 
-> **A mirror must be at least as fast as the front end it mirrors.**
+**Attached — the app is open.** The front end's acks pace the river. The core measures this
+itself, end to end with rendering, in its own performance gate (`scripts/perf/budgets.json`,
+scenario `t1_plain`): **3.3 – 4.6 MB/s**. Every unit clears that by more than an order of
+magnitude. This mode does not constrain anything.
 
-Below that line it falls behind on output the user could actually read, and gaps. Above it,
-it can only gap when the front end is drowning too — and a screen nobody could see is not a
-screen the mirror failed to keep. Measured on the front end this system ships (xterm.js's
-parser and buffer through `@xterm/headless`, fed the *same corpus*, `scripts/frontend-demand.sh`):
-**≈ 110 MB/s** — that is 0.585 of the tee pipe on the same machine.
+**Detached — the app is closed and the shells keep running.** *This is the mode the mirror
+exists for.* And here nothing paces the daemon at all: no attach, no pause, no flow control.
+The producer runs as fast as the daemon can drain the pty, and a mirror that cannot keep up
+loses bytes. So the demand in this mode is simply **the rate at which the daemon delivers to
+the tee**, and it must be measured against the real daemon — not modelled.
 
-The gate cannot run node, and it should not have to: the front-end rate is a *ratio* of the
-pipe's rate, and the pipe the gate can measure itself, in Rust, with no engine and no core.
-So the budget is expressed as that ratio. It scales with the machine — a slow CI box has a
-slow pipe too — which is why the relative-to-the-fastest-candidate guard is **deleted** and
-not replaced. Machine variance is handled by measuring the machine, not by comparing
-candidates.
+`src/daemon_demand.rs` does exactly that: it starts a real `soksak-ptyd`, spawns a session that
+floods 64 MB through a pty, subscribes to the tee over the documented wire (§6.1, §6.2), and
+reports the sustained arrival rate, the bytes the daemon dropped, and whether the marker printed
+*after* the flood ever arrived. On the reference machine:
 
-Reading the measurement is regulated, not left to taste: release build, an otherwise idle
-machine, five repeats, median. **Recalibration means re-running the measurement**
-(`scripts/frontend-demand.sh` and `cargo test --release --test demand -- --ignored`), never
-lowering a number until the units fit under it.
+| subscriber | arrival | dropped (gap) | tail marker |
+| --- | --- | --- | --- |
+| as fast as it can | **77 – 90 MB/s** | 0 | arrived |
+| held at 70 MB/s | 70 MB/s | **4.6 MB lost** | arrived |
+| held at 95 MB/s | 80 MB/s | 0 | arrived |
+| held at 154 MB/s | 78 MB/s | 0 | arrived |
+
+That is the whole derivation. The demand is ~80 MB/s; a consumer below it **demonstrably**
+loses data, one above it does not. Nothing here is inferred.
+
+**Two models were tried before this measurement, and both were wrong in the flattering
+direction.** A hand-built model of the tee pipe — the same syscalls, the same framing, the same
+ring — reported 190 MB/s: **2.4× too fast**, because it did not pay the daemon's mutex, its frame
+queue, its notify, or its separate writer thread. And the front end was modelled as xterm.js's
+*parser* over the same corpus, 110 MB/s — about **25×** the rate the real front end acks at once
+rendering and IPC are in the path (the core's own gate says 3.3–4.6). Both models have been
+deleted rather than kept as context: a plausible model of a thing you can measure is a standing
+invitation to skip the measurement. The gate measures the thing itself.
+
+Measurement is regulated: release build, an otherwise idle machine, the median of three runs.
+**Recalibration means re-running the measurement**, never lowering a number until the units fit
+under it.
 
 ### 14.2 Budgets
 
 | axis | budget | where the number comes from |
 | --- | --- | --- |
-| feed throughput | **≥ 0.6 × the tee pipe's delivery rate, measured on this machine** | The mirror must outrun the front end (§14.1). The front end measures 0.585 of the pipe; 0.6 is that, rounded up. No candidate's score appears anywhere in this derivation. |
+| feed throughput | **≥ the daemon's detached tee delivery rate, measured on this machine** | §14.1. There is no coefficient. The mirror must be at least as fast as the thing feeding it, or it drops bytes — and any factor multiplied into that equation would be a factor chosen by looking at the candidates. |
 | rehydrate | **≤ 5 ms** | A warm reattach must be invisible. One frame at 60 Hz is 16.7 ms, and the paint has to be serialized, relayed over a socket, and parsed by the front end inside it. Five milliseconds is the serializer's share — under a third of the frame. |
 | cold paint | **≤ 5 ms** | As above; a checkpoint runs on a live session and may not stall it for a frame. |
 | paint / sealed size | **≤ 2 MiB** | Geometry, not measurement. The restore window is 80 × 1000 = 80,000 cells. The heaviest screen a cell grid can hold changes style at every cell: a truecolour foreground (`CSI 38;2;R;G;B m`, ≤ 19 bytes) plus a 3-byte character = 22 bytes per cell ≈ 1.76 MB. 2 MiB is the ceiling over that worst case. |
 | memory | **rss ≤ 32 MB** | §11.S **S6**: the sidecar mirrors every pane of a workspace and is a background service — sixteen panes inside 512 MB is the promise, so one mirror gets 32 MB. `heap` is reported but **is not a gate**: zero is a legitimate value for an engine that maps its own grid pages. |
 
 **These budgets do not rank anyone.** They are a floor, and a floor has no first place. The
-comparison table prints `ok` or `UNDER` against the floor and nothing else — the star that
-used to crown the fastest unit is gone with the guard that made it mean something.
+comparison table prints `ok` or `UNDER` against the floor and nothing else — the star that used
+to crown the fastest unit is gone with the relative guard that made it mean something.
 
-### 14.3 Standing, and the two units that do not clear the floor
+### 14.3 Standing — and the one unit that loses data
 
-On the reference machine (Apple silicon, idle, release), the tee pipe delivers 192 MB/s, so
-the floor is 115 MB/s:
+On the reference machine the demand measures ~80–90 MB/s:
 
-| unit | feed | vs. floor | fixtures |
+| unit | feed | vs. demand | fixtures |
 | --- | --- | --- | --- |
-| `soksak-sidecar-terminal-vt100` | 167 MB/s | ok | 7 / 7 |
-| `soksak-sidecar-terminal-alacritty` | 154 MB/s | ok | 7 / 7 |
-| `soksak-sidecar-terminal-ghostty` | 97 MB/s | **under** | 7 / 7 |
-| `soksak-sidecar-terminal-wezterm` | 72 MB/s | **under** | 7 / 7 |
+| `soksak-sidecar-terminal-vt100` | 162 MB/s | ok | 7 / 7 |
+| `soksak-sidecar-terminal-alacritty` | 150 MB/s | ok | 7 / 7 |
+| `soksak-sidecar-terminal-ghostty` | 94 MB/s | ok | 7 / 7 |
+| `soksak-sidecar-terminal-wezterm` | 69 MB/s | **UNDER** | 7 / 7 |
 
-Two units are slower than the front-end terminal they mirror. Under the old floor — 50 MB/s,
-read off the candidates — both passed comfortably. Under the requirement they do not, and what
-that means is concrete: in a sustained flood the front end keeps up and the mirror does not, so
-the daemon drops the mirror's bytes (§6.2) and the restored screen is missing the middle of the
-thing the user just watched go by.
+The wezterm unit's failure is not an inference from a ratio. It was reproduced directly: held at
+its own measured feed rate, a tee subscriber lost **4.6 MB of a 67 MB flood** while a subscriber
+at ghostty's rate lost none. With the app closed and a session dumping output, this unit's mirror
+is missing part of the scrollback it exists to restore, and the gap is recorded rather than
+silent only because §6.2 insists on it.
 
 Every other axis is clear for all four: the paint is 1.05 MB against a 2 MiB ceiling, rehydrate
 and cold paint are half a millisecond against five, and the heaviest mirror holds 15 MB of the
-32 MB it is allowed. The floor that bites is the one that was never derived before.
+32 MB it is allowed.
 
-**The standard does not move for them.** A unit that cannot clear the floor is a unit whose
-engine must get faster — or a unit whose non-conformance is recorded, in the open, here. It is
-not a floor that must come down until everyone fits under it; that is how the 50 got there.
+**The standard does not move for it.** Its engine must get faster, or its non-conformance is
+recorded, in the open, here. It is not a floor that comes down until everyone fits under it —
+that is how the old 50 got there.
+
+**Ghostty sits close to the line** (94 against a demand that varies between 78 and 90 across
+runs), and that is worth saying plainly rather than hiding behind a median. A unit that close to
+the demand is a unit that will gap on a machine slightly different from this one. It passes; it
+should not be comfortable.
 
 ## 15. The gate — where a verdict is actually made
 

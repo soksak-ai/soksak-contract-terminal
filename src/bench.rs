@@ -241,7 +241,14 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
 
     // 수요 — **가장 나중에** 잰다. 이 측정은 64 MB 를 만지므로 앞서 재면 ④ 의 RSS 증가분을
     // 통째로 오염시킨다(할당자가 데워지면 모두가 0 으로 나온다 — bench 모듈 머리말의 그 함정).
-    let demand_mb_s = crate::demand::tee_delivery_mb_s();
+    //
+    // 실 데몬으로 잰다. 데몬 바이너리가 없으면 **수요를 모르는 것이고, 수요를 모르면 판정할 수
+    // 없다** — 조용히 넘어가지 않고 큰 소리로 죽는다.
+    let bin = crate::daemon_demand::ptyd_bin().expect(
+        "SOKSAK_PTYD_BIN 이 없다. 수요는 실 데몬이 tee 로 배달하는 속도이고, 그것을 모르면 feed \
+         예산을 판정할 수 없다(SPEC.md §14.1). 유닛 게이트가 코어에서 데몬을 빌드해 주입한다.",
+    );
+    let demand_mb_s = crate::daemon_demand::detached_arrival_mb_s(&bin);
 
     Report {
         unit: unit.to_string(),
@@ -305,10 +312,7 @@ pub fn table(reports: &[Report]) -> String {
     // 이 표에 등수는 없다. 순위표로 읽으면 잘못 읽는 것이다(SPEC.md §14).
     let floor = demand_floor(reports);
     out.push_str(&format!(
-        "demand (tee delivery, this machine): {:.1} MB/s  →  feed floor {:.1} MB/s (x{})\n\n",
-        floor / crate::bench::BUDGET_FEED_OF_DEMAND,
-        floor,
-        BUDGET_FEED_OF_DEMAND
+        "demand (real daemon, detached tee arrival, this machine): {floor:.1} MB/s = the feed floor\n\n"
     ));
     out.push_str(&format!(
         "{:<12} {:>11} {:>7} {:>10} {:>10} {:>9} {:>9} {:>11} {:>9}\n",
@@ -348,19 +352,17 @@ pub fn demand_floor(reports: &[Report]) -> f64 {
 // 말고 원인을 찾아라(퇴행) 아니면 재보정하라(기계) — 재보정은 값을 낮추는 것이 아니라 요구를
 // 다시 재는 것이다(scripts/frontend-demand.sh).
 
-/// feed 예산 — **수요 대비 비율**. 판정은 `feed >= BUDGET_FEED_OF_DEMAND × demand` 다.
+/// feed 예산 = **수요 그 자체**. 판정은 `feed >= demand` 다. 계수는 없다.
 ///
-/// 유도(SPEC.md §14.2): 요구는 "미러가 tee gap 의 원인이 되지 않는다"이고, 강의 속도를 정하는 것은
-/// **프론트 터미널**이다(데몬은 프론트가 HIGH_WATERMARK 만큼 밀리면 PTY 읽기를 멈춘다). 그러므로
-/// 미러는 **자기가 미러링하는 프론트보다 빨라야** 한다. 기준 기계에서 잰 두 숫자:
+/// 유도(SPEC.md §14): 요구는 "미러가 tee gap 의 원인이 되지 않는다"이고, 수요는 **데몬이 tee 로
+/// 실제 배달하는 지속 속도**다. 미러가 그보다 느리면 데몬은 반드시 떨군다 — 이 등식에 여유분을
+/// 끼워 넣을 자리가 없다. 곱할 계수를 고르는 순간 그 계수는 후보를 보고 고른 것이 된다.
 ///
-///   프론트(@xterm/headless 파서, 같은 코퍼스)  109.8 MB/s
-///   tee 관 배달률([`crate::demand`])            187.7 MB/s   → 비 0.585
-///
-/// 그래서 이 비율은 0.6 이다. 관의 배달률은 게이트가 그 기계에서 직접 재므로(엔진 무관·후보 무관),
-/// 예산은 기계를 따라 함께 움직인다 — 느린 CI 에서 위양성이 나지 않고, 후보끼리 견주는 상대 가드도
-/// 필요 없다. **후보가 몇을 내든 이 비율은 바뀌지 않는다.**
-pub const BUDGET_FEED_OF_DEMAND: f64 = 0.6;
+/// 수요는 [`crate::daemon_demand`] 가 **실 데몬**으로 그 기계에서 직접 잰다(모델이 아니다 —
+/// 관을 흉내 낸 모델은 실제보다 2.4배 빠른 답을 냈다). 앱이 붙어 있지 않은 **분리 모드**로
+/// 잰다: 그 모드에는 데몬의 읽기를 늦추는 것이 아무것도 없고(부착이 없으면 플로우 제어가 꺼진다),
+/// 미러가 존재하는 이유가 바로 그 모드이기 때문이다. 두 모드 중 더 엄한 쪽이 요구다.
+pub const BUDGET_FEED_OF_DEMAND: f64 = 1.0;
 /// rehydrate·cold 지연(ms). 이 축은 엔진이 아니라 직렬화기를 잰다.
 pub const BUDGET_PAINT_MS: f64 = 5.0;
 /// 페인트·봉인 크기(바이트). 유도는 격자의 기하다(SPEC.md §14.2): 복원 창 80×1000 = 80,000 칸,
@@ -378,8 +380,9 @@ pub fn assert_within_budget(r: &Report) {
     let floor = r.demand_mb_s * BUDGET_FEED_OF_DEMAND;
     assert!(
         r.feed_mb_s >= floor,
-        "{u}: feed {:.1} MB/s < 예산 {floor:.1} MB/s (= 수요 {:.1} × {BUDGET_FEED_OF_DEMAND}). \
-         이 미러는 자기가 미러링하는 프론트 터미널보다 느리다 — 홍수에서 tee gap 의 원인이 된다.",
+        "{u}: feed {:.1} MB/s < 수요 {:.1} MB/s. 이 미러는 **데몬이 tee 로 배달하는 속도보다 \
+         느리다** — 앱이 닫힌 채(분리 모드) 세션이 폭주하면 데몬은 이 구독자의 바이트를 떨구고, \
+         복원 화면에 구멍이 남는다. 실측으로 확인된 손실이다(SPEC.md §14.3).",
         r.feed_mb_s,
         r.demand_mb_s
     );

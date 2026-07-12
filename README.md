@@ -79,9 +79,9 @@ or if the reasoning cites nothing at all).
 
 | unit | fixtures | performance floor |
 | --- | --- | --- |
-| `soksak-sidecar-terminal-alacritty` | 7 / 7 | ok |
 | `soksak-sidecar-terminal-vt100` | 7 / 7 (on the fork that adds DEC Special Graphics) | ok |
-| `soksak-sidecar-terminal-ghostty` | 7 / 7 | **under** |
+| `soksak-sidecar-terminal-alacritty` | 7 / 7 | ok |
+| `soksak-sidecar-terminal-ghostty` | 7 / 7 | ok (close to the line) |
 | `soksak-sidecar-terminal-wezterm` | 7 / 7 (on the fork that makes a wide character obey DECAWM at the margin) | **under** |
 
 Both of the engines standing on a fork are there because this suite found a real defect in
@@ -92,9 +92,10 @@ a restore paint that turned alternate scroll **off** in the user's terminal for 
 that had never mentioned it — because the contract's idea of a fresh terminal had been read off
 an engine. SPEC.md §13 has them all, with the reasoning.
 
-Two units are below the performance floor (SPEC.md §14.3). The floor is what the front-end
-terminal consumes, and those two mirrors are slower than the terminal they mirror — so in a
-sustained flood the daemon drops their bytes. The standard does not move for them.
+One unit is below the performance floor (SPEC.md §14.3), and it was not inferred — it was
+reproduced: held at its own feed rate, a tee subscriber lost 4.6 MB of a 67 MB flood. With the
+app closed and a session dumping output, that mirror is missing part of the scrollback it exists
+to restore. The standard does not move for it.
 
 ## The gate
 
@@ -116,13 +117,17 @@ The floor used to be 50 MB/s, sitting just under the slowest unit, with a second
 compared the candidates to each other. Both numbers were the candidates', not the contract's.
 
 The budgets are now derived from the one requirement there is — *the mirror must not be the
-reason a tee gap happens* — and the requirement resolves to something measurable: the daemon
-stops reading the pty when the **front-end terminal** falls behind, so the front end is what
-sets the speed of the river, and **a mirror must be at least as fast as the front end it
-mirrors**. The front end (xterm.js's parser, fed the same corpus) is measured by
-`scripts/frontend-demand.sh`; the tee pipe it rides is measured by the gate itself, in Rust,
-with no engine and no core. The floor is a ratio of the pipe, so it scales with the machine —
-which is why no candidate comparison is needed to survive a slow CI box.
+reason a tee gap happens*. Turning that into a number takes one fact, and it is a fact about the
+daemon, not the mirror: the daemon pauses reading the pty only while a front end is **attached**
+and behind. With the app open, the front end paces the river and everything is easy (the core's
+own gate measures 3.3–4.6 MB/s end to end). With the app **closed** — the mode the mirror exists
+for — nothing paces it at all, and a mirror slower than the daemon's tee delivery simply loses
+bytes.
+
+So the floor is the daemon's detached tee delivery rate, measured on the machine, against a
+**real** `soksak-ptyd` (`src/daemon_demand.rs`). No coefficient: the mirror must be at least as
+fast as the thing feeding it. Two earlier models — a hand-built tee pipe and xterm.js's parser —
+were 2.4× and ~25× off, both in the flattering direction. The gate measures the thing itself.
 
 ## No default unit
 
