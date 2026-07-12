@@ -65,11 +65,13 @@ against the terminal specification, and that argument is written into the file.
 | `soksak-sidecar-terminal-alacritty` | 7 / 7 |
 | `soksak-sidecar-terminal-vt100` | 7 / 7 (on the fork that adds DEC Special Graphics) |
 | `soksak-sidecar-terminal-ghostty` | 7 / 7 |
-| `soksak-sidecar-terminal-wezterm` | **6 / 7** — fixture ② `cjk_width` |
+| `soksak-sidecar-terminal-wezterm` | 7 / 7 (on the fork that makes a wide character obey DECAWM at the margin) |
 
-The wezterm RED is a real engine defect, not a fixture quirk: given one free column it
-packs a double-width character into it instead of wrapping it. SPEC.md §13 has the
-reasoning and the verdict.
+Both of the engines standing on a fork are there because this suite found a real defect in
+them, and both defects were closed at their owner rather than papered over in the unit. The
+suite also found a bug in the *mirror's own serializer* — a style left active across a line
+break, which bleeds colour on any terminal that erases with the current background. SPEC.md
+§13 has all three, with the reasoning.
 
 ## Licensing
 

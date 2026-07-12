@@ -334,10 +334,15 @@ wraps. So the row ends at 79 columns — the last column reserved for the charac
 moved — and the character begins the next row. Alacritty, vt100, and ghostty all do this,
 and two of them keep a dedicated cell state for the reserved column (Alacritty's
 `LEADING_WIDE_CHAR_SPACER`, ghostty's `WIDE_SPACER_HEAD`), which is independent testimony
-that the wrap is the rule. **wezterm-term instead packs the character into the last
-column**, yielding a row that claims 81 columns of content in an 80-column grid, and a
-scrollback one row short. The golden declares the wrap; the wezterm unit is **RED on
-fixture ② (`cjk_width`)**.
+that the wrap is the rule. **wezterm-term instead packed the character into the last
+column**, yielding a row that claimed 81 columns of content in an 80-column grid and a
+scrollback one row short: its print path checked only whether the cursor had passed the
+margin, never whether the grapheme fit in what was left. The golden declares the wrap.
+
+  Closed at its owner, as the vt100 charset gap was. A local fork adds the missing check —
+  under DECAWM a grapheme wider than the remaining columns moves to the next line — and
+  against that engine the unchanged suite is 7 of 7. Release eligibility waits on the fix
+  reaching a published crate; a patch for wezterm upstream is prepared.
 
   This is the finding that condemns the previous acceptance design. Under the old suite —
   which rendered every unit's restore paint with the Alacritty engine and compared it to
@@ -347,12 +352,30 @@ fixture ② (`cjk_width`)**.
   re-rendering. Only a declared golden, compared against the engine's own screen, can see
   it.
 
-**Pen-coloured blanks after an auto-wrap — a representation difference, not a defect.**
-wezterm-term leaves the untouched cells of an auto-wrapped line carrying the pen's SGR.
-On screen those cells are blanks. N6 folds them, and wezterm passes the fixtures that
-would otherwise have failed on them. Recording this matters as much as the RED above: a
-standard that cannot tell a difference in the model from a difference on the screen will
-manufacture false defects.
+**Pen-coloured blanks after a line break — one representation difference, one real bug.**
+wezterm-term fills the untouched cells of a newly exposed line with the pen's current SGR
+(background-colour-erase, which the other three engines do not do on this path). Two
+different things came out of that.
+
+  *The representation difference.* When the pen carries only a foreground colour and bold,
+  those cells are blanks on screen and differ only in the model. N6 folds them. A standard
+  that cannot tell a difference in the model from a difference on the screen manufactures
+  false defects, and this is the rule that stops it.
+
+  *The real bug — ours.* When the pen carries **inverse**, the fill is not invisible: an
+  inverted blank shows the foreground as a solid block. Chasing it found a defect in the
+  mirror's own serializer, in every engine unit: the restore paint emitted `\r\n` with a
+  style still active, so a terminal that erases with the current background bled that style
+  across the rest of the newly exposed line. The raw stream never does this — it resets SGR
+  before the newline — and the paint must not either. The serializer now resets before every
+  line break.
+
+  This one is worth dwelling on, because it is not an engine's bug: it is a restore-fidelity
+  bug that would bleed colour into a real user's screen, on any terminal that implements
+  background-colour erase — which the front-end terminals do. The old acceptance could not
+  see it. It rendered the paint with Alacritty, and Alacritty does not fill on this path, so
+  the bleed had nothing to land on. It took an engine that does fill, graded against a
+  declared golden, to make it visible.
 
 **vt100 — an engine capability gap, closed at its owner.** The published `vt100` 0.16.2
 does not implement DEC Special Graphics: it ignores `ESC ( 0` and treats SI/SO as no-ops,
