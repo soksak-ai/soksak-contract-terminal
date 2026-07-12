@@ -35,7 +35,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 /// 홍수 크기 — 링(256 KiB)과 tee 버퍼(1 MB)를 여러 자릿수 넘겨야 "지속" 조건이 성립한다.
 const FLOOD_BYTES: usize = 64 * 1024 * 1024;
@@ -212,11 +212,14 @@ impl Drop for Daemon {
     }
 }
 
+// 픽스처 루트는 고정 경로를 재사용한다 — 실행마다 새 이름을 만들면 죽은 회차마다 루트가 하나씩
+// 쌓여 다음 시험이 남의 쓰레기 위에서 돈다(실측: 이 함수가 남긴 루트 3개). 시작할 때 자기 자리를
+// 비우므로 이전 회차가 비정상 종료해도 잔재는 하나를 넘지 않는다(멱등).
 fn fresh_home() -> PathBuf {
-    let nanos = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos();
     let home = PathBuf::from(std::env::var("HOME").unwrap())
         .join(".soksak-e2e")
-        .join(format!("contract-demand-{}-{nanos}", std::process::id()));
+        .join("contract-demand");
+    let _ = std::fs::remove_dir_all(&home);
     std::fs::create_dir_all(&home).expect("home");
     home
 }
