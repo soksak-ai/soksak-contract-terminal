@@ -1,0 +1,6 @@
+target/
+Cargo.lock
+.DS_Store
+
+# local-only working notes (never committed)
+secret/

@@ -1,0 +1,64 @@
+# 근거 — ⑦ DEC Special Graphics.
+#   ESC ( 0 은 G0 을 DEC Special Graphics 로 지정한다. 활성 세트가 G0 이므로 인쇄 시점에 표대로
+#   번역된다: l→U+250C ┌, q→U+2500 ─, k→U+2510 ┐, x→U+2502 │, m→U+2514 └, j→U+2518 ┘.
+#   SO(0x0E)는 G1 을 활성으로 불러 들이고(G1 은 기본 ASCII) SI(0x0F)가 G0 으로 되돌린다 — 그래서
+#   테두리 안의 " inner  " 는 그대로 ASCII 이고, 'n' 이 U+253C ┼ 로 오염되지 않는다. ESC ( B 가
+#   G0 을 ASCII 로 되돌린 뒤의 "DONE" 도 그대로다.
+#   골든이 박스 글리프를 선언하는 근거는 어떤 엔진의 출력이 아니라 이 표다.
+# soksak-contract-terminal — 선언된 화면 상태(골든).
+# 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
+cols 80
+rows 24
+alt 0
+cursor 0 5
+modes 0 0 0 0 0 0 0 0 0 1 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+history 0
+visible 24
+# |BORDER-BOX|
+V00 42:n:-:-:- 4F:n:-:-:- 52:n:-:-:- 44:n:-:-:- 45:n:-:-:- 52:n:-:-:- 2D:n:-:-:- 42:n:-:-:- 4F:n:-:-:- 58:n:-:-:-
+# |┌────────┐|
+V01 250C:n:-:-:- 8*2500:n:-:-:- 2510:n:-:-:-
+# |│ inner  │|
+V02 2502:n:-:-:- . 69:n:-:-:- 2*6E:n:-:-:- 65:n:-:-:- 72:n:-:-:- 2*. 2502:n:-:-:-
+# |└────────┘|
+V03 2514:n:-:-:- 8*2500:n:-:-:- 2518:n:-:-:-
+# |DONE|
+V04 44:n:-:-:- 4F:n:-:-:- 4E:n:-:-:- 45:n:-:-:-
+# ||
+V05
+# ||
+V06
+# ||
+V07
+# ||
+V08
+# ||
+V09
+# ||
+V10
+# ||
+V11
+# ||
+V12
+# ||
+V13
+# ||
+V14
+# ||
+V15
+# ||
+V16
+# ||
+V17
+# ||
+V18
+# ||
+V19
+# ||
+V20
+# ||
+V21
+# ||
+V22
+# ||
+V23

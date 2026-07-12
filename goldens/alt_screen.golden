@@ -1,0 +1,62 @@
+# 근거 — ③ alt-screen 활성 화면.
+#   DECSET 1049 는 대체 화면으로 전환하고 커서를 저장한다. 대체 화면에는 **스크롤백이 없다**
+#   (그래서 history 0). 프라임 화면과 그 스크롤백은 손대지 않은 채 밑에 남는다 — 이탈 골든
+#   (alt_screen.after)이 그것을 확인한다. 마지막 프레임은 CSI 2J(화면 지움) 뒤 그린 TUI 박스이고,
+#   CSI 2;3H 로 커서를 (x=2, y=1)에, DECRST 25 로 커서를 숨긴다(modes.show_cursor = 0).
+# soksak-contract-terminal — 선언된 화면 상태(골든).
+# 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
+cols 80
+rows 24
+alt 1
+cursor 2 1
+modes 0 0 0 0 0 0 0 0 0 1 0 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+history 0
+visible 24
+# |┌ TUI-FINAL-MARK ┐|
+V00 250C:n:-:-:- . 54:n:-:-:- 55:n:-:-:- 49:n:-:-:- 2D:n:-:-:- 46:n:-:-:- 49:n:-:-:- 4E:n:-:-:- 41:n:-:-:- 4C:n:-:-:- 2D:n:-:-:- 4D:n:-:-:- 41:n:-:-:- 52:n:-:-:- 4B:n:-:-:- . 2510:n:-:-:-
+# |│ inner body │|
+V01 2502:n:-:-:- . 69:n:p3:-:- 2*6E:n:p3:-:- 65:n:p3:-:- 72:n:p3:-:- . 62:n:-:-:- 6F:n:-:-:- 64:n:-:-:- 79:n:-:-:- . 2502:n:-:-:-
+# |└───┘|
+V02 2514:n:-:-:- 3*2500:n:-:-:- 2518:n:-:-:-
+# ||
+V03
+# ||
+V04
+# ||
+V05
+# ||
+V06
+# ||
+V07
+# ||
+V08
+# ||
+V09
+# ||
+V10
+# ||
+V11
+# ||
+V12
+# ||
+V13
+# ||
+V14
+# ||
+V15
+# ||
+V16
+# ||
+V17
+# ||
+V18
+# ||
+V19
+# ||
+V20
+# ||
+V21
+# ||
+V22
+# ||
+V23
