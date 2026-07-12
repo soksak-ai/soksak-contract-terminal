@@ -24,17 +24,26 @@ trap 'rm -rf "$BENCH_OUT"' EXIT
 echo "== 계약 자체 시험(코덱 왕복 등)"
 ( cd "$HERE" && cargo test --release )
 
+# 첫 실패에서 멈추지 않는다. 한 유닛이 떨어졌다고 나머지를 안 돌리면, 함대의 상태를 알 수 없다 —
+# "무엇이 떨어졌나"는 전부 돌려 봐야 나오는 답이다. 실패는 모아 두었다가 끝에서 한 번에 낸다.
+FAILED=()
 for u in "${UNITS[@]}"; do
   GATE="$SIDECARS/soksak-sidecar-terminal-$u/scripts/gate.sh"
   if [ ! -x "$GATE" ]; then
     echo "유닛 게이트가 없다: $GATE" >&2
     exit 1
   fi
-  "$GATE" "$BENCH_OUT"
+  if ! "$GATE" "$BENCH_OUT"; then
+    FAILED+=("$u")
+  fi
 done
 
-echo "== 함대: 상대 가드 + 비교표(SPEC.md §14.2)"
+echo "== 함대: 비교표(SPEC.md §14.2). 여기에 판정은 없다 — 판정은 유닛 게이트에서 끝났다."
 ( cd "$HERE" && SOKSAK_BENCH_OUT="$BENCH_OUT" \
     cargo test --release --test bench_table -- --ignored --nocapture )
 
+if [ ${#FAILED[@]} -ne 0 ]; then
+  echo "== FLEET GATE FAIL — 떨어진 유닛: ${FAILED[*]}" >&2
+  exit 1
+fi
 echo "== FLEET GATE PASS"

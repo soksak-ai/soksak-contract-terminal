@@ -632,22 +632,29 @@ used to crown the fastest unit is gone with the guard that made it mean somethin
 
 ### 14.3 Standing, and the two units that do not clear the floor
 
-On the reference machine (Apple silicon, idle, release):
+On the reference machine (Apple silicon, idle, release), the tee pipe delivers 192 MB/s, so
+the floor is 115 MB/s:
 
-| unit | feed | vs. floor (≈ 113 MB/s) |
-| --- | --- | --- |
-| `soksak-sidecar-terminal-vt100` | 168 MB/s | ok |
-| `soksak-sidecar-terminal-alacritty` | 155 MB/s | ok |
-| `soksak-sidecar-terminal-ghostty` | 95 MB/s | **under** |
-| `soksak-sidecar-terminal-wezterm` | 72 MB/s | **under** |
+| unit | feed | vs. floor | fixtures |
+| --- | --- | --- | --- |
+| `soksak-sidecar-terminal-vt100` | 167 MB/s | ok | 7 / 7 |
+| `soksak-sidecar-terminal-alacritty` | 154 MB/s | ok | 7 / 7 |
+| `soksak-sidecar-terminal-ghostty` | 97 MB/s | **under** | 7 / 7 |
+| `soksak-sidecar-terminal-wezterm` | 72 MB/s | **under** | 7 / 7 |
 
-Two units are slower than the front-end terminal they mirror. Under the old floor (50 MB/s,
-read off the candidates) both passed comfortably; under the requirement they do not, and what
-that means is concrete: in a sustained flood the front end keeps up and the mirror does not,
-so the daemon drops the mirror's bytes and the restored screen is missing the middle of it.
+Two units are slower than the front-end terminal they mirror. Under the old floor — 50 MB/s,
+read off the candidates — both passed comfortably. Under the requirement they do not, and what
+that means is concrete: in a sustained flood the front end keeps up and the mirror does not, so
+the daemon drops the mirror's bytes (§6.2) and the restored screen is missing the middle of the
+thing the user just watched go by.
 
-The standard does not move for them. A unit that cannot clear the floor is a unit whose engine
-must get faster — or a unit whose non-conformance is recorded, in the open, here.
+Every other axis is clear for all four: the paint is 1.05 MB against a 2 MiB ceiling, rehydrate
+and cold paint are half a millisecond against five, and the heaviest mirror holds 15 MB of the
+32 MB it is allowed. The floor that bites is the one that was never derived before.
+
+**The standard does not move for them.** A unit that cannot clear the floor is a unit whose
+engine must get faster — or a unit whose non-conformance is recorded, in the open, here. It is
+not a floor that must come down until everyone fits under it; that is how the 50 got there.
 
 ## 15. The gate — where a verdict is actually made
 
