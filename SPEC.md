@@ -658,33 +658,42 @@ to crown the fastest unit is gone with the relative guard that made it mean some
 
 ### 14.3 Standing — and the one unit that loses data
 
-On the reference machine the demand measures ~80–90 MB/s:
+The verdict is not a ratio. The gate holds a tee subscriber at **the unit's own measured feed
+rate**, floods a real daemon, and reports what the daemon dropped. That is the harm the
+requirement is about, so that is what the gate judges; `feed < demand` is the *explanation* for
+the harm, not the finding.
 
-| unit | feed | vs. demand | fixtures |
-| --- | --- | --- | --- |
-| `soksak-sidecar-terminal-vt100` | 162 MB/s | ok | 7 / 7 |
-| `soksak-sidecar-terminal-alacritty` | 150 MB/s | ok | 7 / 7 |
-| `soksak-sidecar-terminal-ghostty` | 94 MB/s | ok | 7 / 7 |
-| `soksak-sidecar-terminal-wezterm` | 69 MB/s | **UNDER** | 7 / 7 |
+On the reference machine (demand 84 – 89 MB/s, detached, real `soksak-ptyd`, 67 MB flood):
 
-The wezterm unit's failure is not an inference from a ratio. It was reproduced directly: held at
-its own measured feed rate, a tee subscriber lost **4.6 MB of a 67 MB flood** while a subscriber
-at ghostty's rate lost none. With the app closed and a session dumping output, this unit's mirror
-is missing part of the scrollback it exists to restore, and the gap is recorded rather than
-silent only because §6.2 insists on it.
+| unit | feed | vs. demand | **bytes the daemon dropped** | tail | fixtures |
+| --- | --- | --- | --- | --- | --- |
+| `soksak-sidecar-terminal-vt100` | 164 MB/s | ok | **0** | arrived | 7 / 7 |
+| `soksak-sidecar-terminal-alacritty` | 152 MB/s | ok | **0** | arrived | 7 / 7 |
+| `soksak-sidecar-terminal-ghostty` | 94 MB/s | ok | **0** | arrived | 7 / 7 |
+| `soksak-sidecar-terminal-wezterm` | 68 MB/s | **UNDER** | **16.5 MB lost** | arrived | 7 / 7 |
+
+Three units lose nothing. One loses sixteen and a half megabytes of a sixty-seven megabyte
+flood. That is what the budget is for, and it is the only sentence in this section that had to
+be measured rather than argued: with the app closed and a session dumping output, the wezterm
+unit's mirror does not receive a quarter of the screen it exists to restore. The loss is
+recorded rather than silent only because §6.2 insists on it.
+
+**The zeroes are the other half of the proof.** A floor that no one fails is not a floor, and a
+floor that everyone fails is not a requirement — the three units above the demand were held at
+their own rates against the same daemon and dropped nothing, which is what says the line is in
+the right place.
 
 Every other axis is clear for all four: the paint is 1.05 MB against a 2 MiB ceiling, rehydrate
 and cold paint are half a millisecond against five, and the heaviest mirror holds 15 MB of the
 32 MB it is allowed.
 
-**The standard does not move for it.** Its engine must get faster, or its non-conformance is
-recorded, in the open, here. It is not a floor that comes down until everyone fits under it —
-that is how the old 50 got there.
+**The standard does not move for wezterm.** Its engine must get faster, or its non-conformance
+is recorded, in the open, here and in its own README. It is not a floor that comes down until
+everyone fits under it — that is how the old 50 got there.
 
-**Ghostty sits close to the line** (94 against a demand that varies between 78 and 90 across
-runs), and that is worth saying plainly rather than hiding behind a median. A unit that close to
-the demand is a unit that will gap on a machine slightly different from this one. It passes; it
-should not be comfortable.
+**Ghostty sits close to the line** (94 against a demand that measures between 84 and 89 across
+runs), and that is worth saying plainly rather than hiding behind a median. It drops nothing
+today. On a machine whose daemon is a little faster, it would.
 
 ## 15. The gate — where a verdict is actually made
 

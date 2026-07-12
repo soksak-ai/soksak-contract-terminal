@@ -173,6 +173,12 @@ pub struct Report {
     /// **수요**(MB/s) — 분리 모드에서 **실 데몬**이 tee 로 배달하는 지속 속도. 엔진과 무관하게
     /// 같은 실행에서 직접 잰다([`crate::daemon_demand`]). feed 예산이 곧 이 값이다.
     pub demand_mb_s: f64,
+    /// **실제로 잃은 바이트** — 이 유닛의 feed 속도로 묶인 tee 구독자를 실 데몬 폭주에 세웠을 때
+    /// 데몬이 떨군 양. 0 이 아니면 이 미러는 복원해야 할 화면의 일부를 못 받는다.
+    pub gap_bytes: u64,
+    /// 홍수가 끝난 뒤 셸이 찍은 마지막 마커가 그 구독자에게 닿았는가. 못 닿으면 복원 화면이
+    /// 통째로 낡은 것이 된다.
+    pub tail_seen: bool,
 }
 
 fn median(mut v: Vec<f64>) -> f64 {
@@ -250,6 +256,11 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
     );
     let demand_mb_s = crate::daemon_demand::detached_arrival_mb_s(&bin);
 
+    // **손실 실측** — 예산이 비율 비교로 끝나면, "이 미러는 바이트를 잃는다"는 말은 추론이지
+    // 관찰이 아니다. 그래서 이 유닛의 **실제 feed 속도**로 tee 구독자를 묶고 같은 실 데몬 폭주에
+    // 세운다. 데몬이 이 속도의 구독자에게서 떨구는 것이 있으면, 그것이 이 미러가 잃을 바이트다.
+    let loss = crate::daemon_demand::measure(&bin, false, Some(median(feed.clone())));
+
     Report {
         unit: unit.to_string(),
         feed_mb_s: median(feed),
@@ -260,6 +271,8 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
         live_bytes: live,
         rss_bytes: rss,
         demand_mb_s,
+        gap_bytes: loss.gap_bytes,
+        tail_seen: loss.tail_seen,
     }
 }
 
@@ -268,7 +281,7 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
 impl Report {
     pub fn to_line(&self) -> String {
         format!(
-            "{} {} {} {} {} {} {} {} {}",
+            "{} {} {} {} {} {} {} {} {} {} {}",
             self.unit,
             self.feed_mb_s,
             self.rehydrate_ms,
@@ -277,14 +290,16 @@ impl Report {
             self.cold_bytes,
             self.live_bytes,
             self.rss_bytes,
-            self.demand_mb_s
+            self.demand_mb_s,
+            self.gap_bytes,
+            self.tail_seen
         )
     }
 
     pub fn from_line(s: &str) -> Result<Report, String> {
         let f: Vec<&str> = s.split_whitespace().collect();
-        if f.len() != 9 {
-            return Err(format!("bench line has {} fields, want 9", f.len()));
+        if f.len() != 11 {
+            return Err(format!("bench line has {} fields, want 11", f.len()));
         }
         let num = |i: usize| f[i].parse::<f64>().map_err(|e| e.to_string());
         let cnt = |i: usize| f[i].parse::<usize>().map_err(|e| e.to_string());
@@ -298,6 +313,8 @@ impl Report {
             live_bytes: cnt(6)?,
             rss_bytes: cnt(7)?,
             demand_mb_s: num(8)?,
+            gap_bytes: cnt(9)? as u64,
+            tail_seen: f[10] == "true",
         })
     }
 }
@@ -315,26 +332,30 @@ pub fn table(reports: &[Report]) -> String {
         "demand (real daemon, detached tee arrival, this machine): {floor:.1} MB/s = the feed floor\n\n"
     ));
     out.push_str(&format!(
-        "{:<12} {:>11} {:>7} {:>10} {:>10} {:>9} {:>9} {:>11} {:>9}\n",
-        "unit", "feed MB/s", "vs floor", "rehyd ms", "paint KB", "cold ms", "cold KB", "heap MB", "rss MB"
+        "{:<12} {:>11} {:>7} {:>11} {:>6} {:>9} {:>9} {:>9} {:>8}\n",
+        "unit", "feed MB/s", "vs dmd", "lost (MB)", "tail", "rehyd ms", "cold ms", "paint KB", "rss MB"
     ));
     out.push_str(&"-".repeat(96));
     out.push('\n');
 
     for r in reports {
         out.push_str(&format!(
-            "{:<12} {:>11.1} {:>7} {:>10.2} {:>10.1} {:>9.2} {:>9.1} {:>11.1} {:>9.1}\n",
+            "{:<12} {:>11.1} {:>7} {:>11.1} {:>6} {:>9.2} {:>9.2} {:>9.1} {:>8.1}\n",
             r.unit,
             r.feed_mb_s,
             if r.feed_mb_s >= floor { "ok" } else { "UNDER" },
+            r.gap_bytes as f64 / 1e6,
+            if r.tail_seen { "ok" } else { "LOST" },
             r.rehydrate_ms,
-            r.paint_bytes as f64 / 1024.0,
             r.cold_ms,
-            r.cold_bytes as f64 / 1024.0,
-            r.live_bytes as f64 / 1e6,
+            r.paint_bytes as f64 / 1024.0,
             r.rss_bytes as f64 / 1e6,
         ));
     }
+    out.push_str(
+        "\nlost = 이 유닛의 feed 속도로 묶인 tee 구독자에게서 실 데몬이 떨군 바이트(SPEC.md §14.3).\n\
+         판정은 이 열이 한다 — feed vs 수요는 그 손실이 왜 나는지의 설명이다.\n",
+    );
     out
 }
 
@@ -377,12 +398,32 @@ pub const BUDGET_RSS_BYTES: usize = 32 * 1024 * 1024;
 /// 한 유닛의 예산. 어기면 패닉한다 — 벤치가 곧 게이트다.
 pub fn assert_within_budget(r: &Report) {
     let u = &r.unit;
+
+    // ── 판정의 본체: **관찰된 손실**. 비율 비교가 아니다.
+    //
+    // "이 미러는 바이트를 잃는다"는 말은 추론으로 하면 안 된다. 그래서 이 유닛의 실제 feed
+    // 속도로 묶은 tee 구독자를 실 데몬 폭주에 세워 보고, 데몬이 정말로 떨구는지를 본다.
+    // 떨궜다면 그것이 복원 화면의 구멍이고, 그 구멍이 불합격의 사유다(SPEC.md §14.3).
+    assert_eq!(
+        r.gap_bytes, 0,
+        "{u}: 이 미러의 속도({:.1} MB/s)로는 데몬의 tee 를 따라가지 못한다 — 앱이 닫힌 채 세션이 \
+         폭주하는 동안 데몬이 **{:.1} MB 를 떨궜다**. 복원 화면에 그만큼의 구멍이 남는다. \
+         추론이 아니라 이 실행에서 실 데몬으로 관찰한 손실이다.",
+        r.feed_mb_s,
+        r.gap_bytes as f64 / 1e6
+    );
+    assert!(
+        r.tail_seen,
+        "{u}: 홍수가 끝난 뒤 셸이 찍은 마지막 줄이 이 속도의 구독자에게 **닿지 못했다** — 복원 \
+         화면이 통째로 낡은 것이 된다(마지막 화면을 못 받았다).",
+    );
+
+    // ── 그 손실이 왜 나는지의 설명: 미러가 자기를 먹여 주는 것보다 느리다. 손실이 0 인데 이 줄이
+    // 터진다면 예산 유도와 관찰이 어긋난 것이므로, 그때는 사람이 봐야 한다(무음 통과 금지).
     let floor = r.demand_mb_s * BUDGET_FEED_OF_DEMAND;
     assert!(
         r.feed_mb_s >= floor,
-        "{u}: feed {:.1} MB/s < 수요 {:.1} MB/s. 이 미러는 **데몬이 tee 로 배달하는 속도보다 \
-         느리다** — 앱이 닫힌 채(분리 모드) 세션이 폭주하면 데몬은 이 구독자의 바이트를 떨구고, \
-         복원 화면에 구멍이 남는다. 실측으로 확인된 손실이다(SPEC.md §14.3).",
+        "{u}: feed {:.1} MB/s < 수요 {:.1} MB/s — 이 미러는 데몬이 tee 로 배달하는 속도보다 느리다.",
         r.feed_mb_s,
         r.demand_mb_s
     );
