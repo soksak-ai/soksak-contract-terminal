@@ -1,0 +1,61 @@
+# 근거 — ⑤ 질의는 화면을 만들지 않는다.
+#   DA1(CSI c)·DA2(CSI > c)·DSR(CSI 6n)·OSC 11 질의는 응답을 요구하는 제어열이지 인쇄 가능한
+#   텍스트가 아니다 — 화면에는 아무것도 남기지 않는다(ECMA-48). 그래서 골든은 두 마커만 담는다.
+#   미러는 응답하지 않고 삼킨다(suppressed 계수), 재생 페인트에도 질의 바이트가 실리지 않는다.
+# soksak-contract-terminal — 선언된 화면 상태(골든).
+# 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
+cols 80
+rows 24
+alt 0
+cursor 0 2
+modes 0 0 0 0 0 0 0 0 0 1 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+history 0
+visible 24
+# |GUARD-MARK|
+V00 47:n:-:-:- 55:n:-:-:- 41:n:-:-:- 52:n:-:-:- 44:n:-:-:- 2D:n:-:-:- 4D:n:-:-:- 41:n:-:-:- 52:n:-:-:- 4B:n:-:-:-
+# |AFTER-QUERY-MARK|
+V01 41:n:-:-:- 46:n:-:-:- 54:n:-:-:- 45:n:-:-:- 52:n:-:-:- 2D:n:-:-:- 51:n:-:-:- 55:n:-:-:- 45:n:-:-:- 52:n:-:-:- 59:n:-:-:- 2D:n:-:-:- 4D:n:-:-:- 41:n:-:-:- 52:n:-:-:- 4B:n:-:-:-
+# ||
+V02
+# ||
+V03
+# ||
+V04
+# ||
+V05
+# ||
+V06
+# ||
+V07
+# ||
+V08
+# ||
+V09
+# ||
+V10
+# ||
+V11
+# ||
+V12
+# ||
+V13
+# ||
+V14
+# ||
+V15
+# ||
+V16
+# ||
+V17
+# ||
+V18
+# ||
+V19
+# ||
+V20
+# ||
+V21
+# ||
+V22
+# ||
+V23

@@ -1,0 +1,22 @@
+# soksak-contract-terminal — the contract soksak-sidecar-terminal-spec@1 and its acceptance suite.
+#
+# Nothing here runs and nothing here ships: no binary, no dist, no registry entry. Engine units
+# consume it as a dev-dependency, and that is the only way it is consumed.
+#
+# It has no VT engine — not even as a dependency. The standard is the declared goldens, not what
+# any implementation happens to do, so no engine is first-class here.
+[package]
+name = "soksak-contract-terminal"
+version = "0.0.1"
+edition = "2021"
+publish = false
+description = "The soksak-sidecar-terminal-spec@1 contract: the canonical screen state, the declared goldens, the corpus, and the acceptance assertions every engine unit is graded by."
+
+[lib]
+name = "soksak_contract_terminal"
+path = "src/lib.rs"
+
+[dependencies]
+
+# Independent workspace — it sits beside the units, not inside one.
+[workspace]
