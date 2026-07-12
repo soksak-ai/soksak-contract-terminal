@@ -73,6 +73,19 @@ suite also found a bug in the *mirror's own serializer* — a style left active 
 break, which bleeds colour on any terminal that erases with the current background. SPEC.md
 §13 has all three, with the reasoning.
 
+## The gate
+
+**A unit passes when `scripts/gate.sh` passes, and by no other means.** One command, everything
+blocking: the seven fixtures against the goldens, the unit tests, the real-daemon integration,
+and the performance budgets. The benchmark is `#[ignore]`d in the ordinary test run — it would
+slow the development loop — so a budget that only ran when someone remembered to ask for it
+would have been a comment, not a budget. The gate is what makes it binding.
+
+`scripts/gate.sh` **in this repo** runs every unit's gate and then compares them. The relative
+guard on feed throughput — no unit below a quarter of the fastest in the same run — can only be
+seen with the units side by side, so this is the only place it can be enforced. Both gates were
+verified to fail on a breach, not merely to pass without one.
+
 ## Performance is a floor, not a ranking
 
 The suite also measures every unit on one corpus through the same trait — feed throughput, the

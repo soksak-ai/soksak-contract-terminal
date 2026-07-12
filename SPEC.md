@@ -442,3 +442,23 @@ and resident growth reports zero for everyone.
 The absolute numbers are calibrated against a current desktop CPU. They are not the
 requirement; the requirement is that no unit regresses by an order of magnitude, and these are
 what that means today. Recalibrate them rather than weaken them.
+
+## 15. The gate — where a verdict is actually made
+
+A budget that is only checked when someone remembers to ask for it is not a budget, it is a
+comment. The benchmark is `#[ignore]`d in the ordinary test run on purpose — it slows the
+development loop and adds noise — so it would never have run on its own. What makes it binding
+is that the verdict is not delivered by `cargo test` at all.
+
+**A unit passes when `scripts/gate.sh` passes, and by no other means.** That script is the
+whole judgement in one command: the seven fixtures against the declared goldens, the unit
+tests, the real-daemon integration, and the performance budgets of §14.2 — every one of them
+blocking. Nothing in it is optional and nothing in it can be skipped by forgetting.
+
+**The fleet gate is where the relative guard lives.** A unit on its own cannot tell whether it
+got slower or the machine did; that only shows when the units stand side by side. So
+`scripts/gate.sh` in this repo runs every unit's gate, then compares them — and fails if any
+unit falls below a quarter of the fastest in that same run. A unit gate alone cannot enforce
+that, which is exactly why the fleet gate exists rather than being a convenience wrapper.
+
+Both gates were verified to fail when a budget is breached, not merely to pass when it is not.
