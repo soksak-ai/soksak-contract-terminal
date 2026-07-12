@@ -170,6 +170,9 @@ pub struct Report {
     pub live_bytes: usize,
     /// ④ 같은 조건에서의 프로세스 상주 메모리 증가분(바이트). 우회 메모리까지 본다.
     pub rss_bytes: usize,
+    /// **수요**(MB/s) — 이 기계에서 §6.2 의 tee 관이 미러 앞까지 배달할 수 있는 최대. 엔진과
+    /// 무관하게 같은 실행에서 직접 잰다([`crate::demand`]). feed 예산이 여기서 나온다.
+    pub demand_mb_s: f64,
 }
 
 fn median(mut v: Vec<f64>) -> f64 {
@@ -236,6 +239,10 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
     let cold_bytes = m.cold_paint().len();
     drop(m);
 
+    // 수요 — **가장 나중에** 잰다. 이 측정은 64 MB 를 만지므로 앞서 재면 ④ 의 RSS 증가분을
+    // 통째로 오염시킨다(할당자가 데워지면 모두가 0 으로 나온다 — bench 모듈 머리말의 그 함정).
+    let demand_mb_s = crate::demand::tee_delivery_mb_s();
+
     Report {
         unit: unit.to_string(),
         feed_mb_s: median(feed),
@@ -245,6 +252,7 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
         cold_bytes,
         live_bytes: live,
         rss_bytes: rss,
+        demand_mb_s,
     }
 }
 
@@ -253,7 +261,7 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
 impl Report {
     pub fn to_line(&self) -> String {
         format!(
-            "{} {} {} {} {} {} {} {}",
+            "{} {} {} {} {} {} {} {} {}",
             self.unit,
             self.feed_mb_s,
             self.rehydrate_ms,
@@ -261,14 +269,15 @@ impl Report {
             self.cold_ms,
             self.cold_bytes,
             self.live_bytes,
-            self.rss_bytes
+            self.rss_bytes,
+            self.demand_mb_s
         )
     }
 
     pub fn from_line(s: &str) -> Result<Report, String> {
         let f: Vec<&str> = s.split_whitespace().collect();
-        if f.len() != 8 {
-            return Err(format!("bench line has {} fields, want 8", f.len()));
+        if f.len() != 9 {
+            return Err(format!("bench line has {} fields, want 9", f.len()));
         }
         let num = |i: usize| f[i].parse::<f64>().map_err(|e| e.to_string());
         let cnt = |i: usize| f[i].parse::<usize>().map_err(|e| e.to_string());
@@ -281,6 +290,7 @@ impl Report {
             cold_bytes: cnt(5)?,
             live_bytes: cnt(6)?,
             rss_bytes: cnt(7)?,
+            demand_mb_s: num(8)?,
         })
     }
 }
@@ -291,55 +301,87 @@ pub fn table(reports: &[Report]) -> String {
     let mut out = String::new();
     out.push_str(&format!("corpus: {}\n", corpus_shape()));
     out.push_str(&format!("repeats: {REPEATS} (median), release build\n\n"));
+    // 수요는 유닛마다 따로 잰다(같은 기계·같은 관이므로 값은 서로 가깝다). 표는 중앙값을 쓴다 —
+    // 이 표에 등수는 없다. 순위표로 읽으면 잘못 읽는 것이다(SPEC.md §14).
+    let floor = demand_floor(reports);
     out.push_str(&format!(
-        "{:<12} {:>11} {:>10} {:>10} {:>9} {:>9} {:>11} {:>10}\n",
-        "unit", "feed MB/s", "rehyd ms", "paint KB", "cold ms", "cold KB", "heap MB", "rss MB"
+        "demand (tee delivery, this machine): {:.1} MB/s  →  feed floor {:.1} MB/s (x{})\n\n",
+        floor / crate::bench::BUDGET_FEED_OF_DEMAND,
+        floor,
+        BUDGET_FEED_OF_DEMAND
     ));
-    out.push_str(&"-".repeat(88));
+    out.push_str(&format!(
+        "{:<12} {:>11} {:>7} {:>10} {:>10} {:>9} {:>9} {:>11} {:>9}\n",
+        "unit", "feed MB/s", "vs floor", "rehyd ms", "paint KB", "cold ms", "cold KB", "heap MB", "rss MB"
+    ));
+    out.push_str(&"-".repeat(96));
     out.push('\n');
-
-    let best_feed = reports.iter().map(|r| r.feed_mb_s).fold(0.0_f64, f64::max);
-    let least_rss = reports.iter().map(|r| r.rss_bytes).min().unwrap_or(1).max(1);
 
     for r in reports {
         out.push_str(&format!(
-            "{:<12} {:>9.1}{:<2} {:>10.2} {:>10.1} {:>9.2} {:>9.1} {:>11.1} {:>8.1}{:<2}\n",
+            "{:<12} {:>11.1} {:>7} {:>10.2} {:>10.1} {:>9.2} {:>9.1} {:>11.1} {:>9.1}\n",
             r.unit,
             r.feed_mb_s,
-            if r.feed_mb_s >= best_feed * 0.999 { " ★" } else { "" },
+            if r.feed_mb_s >= floor { "ok" } else { "UNDER" },
             r.rehydrate_ms,
             r.paint_bytes as f64 / 1024.0,
             r.cold_ms,
             r.cold_bytes as f64 / 1024.0,
             r.live_bytes as f64 / 1e6,
             r.rss_bytes as f64 / 1e6,
-            if r.rss_bytes <= (least_rss as f64 * 1.05) as usize { " ★" } else { "" },
         ));
     }
     out
 }
 
-// ── 예산 — 합격 게이트(SPEC.md §14.2) ────────────────────────────────────────
-// 이 숫자는 요구 자체가 아니다: 요구는 "자릿수 퇴행 금지"이고, 이 값은 오늘의 데스크톱 CPU 에서
-// 그것이 뜻하는 바다. 어겼다면 약화시키지 말고 원인을 찾거나(퇴행) 재보정하라(하드웨어).
+/// 이 실행의 feed 하한 — 유닛들이 각자 잰 수요의 중앙값 × 비율. 유닛의 **성적은 전혀 보지 않는다**
+/// (그것이 후보가 기준을 정하는 길이다). 보는 것은 관의 속도뿐이다.
+pub fn demand_floor(reports: &[Report]) -> f64 {
+    let mut d: Vec<f64> = reports.iter().map(|r| r.demand_mb_s).collect();
+    d.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    d[d.len() / 2] * BUDGET_FEED_OF_DEMAND
+}
 
-/// feed 절대 하한(MB/s). 실 PTY 는 몇 MB/s 라 여기서 스무 배 넘게 여유가 있다.
-pub const BUDGET_FEED_MB_S: f64 = 50.0;
-/// feed 상대 가드 — 같은 실행의 최고 유닛 대비 이 비율 미만이면 불합격.
-pub const BUDGET_FEED_RELATIVE: f64 = 0.25;
-/// rehydrate·cold 지연(ms)과 산출 크기(바이트). 이 축은 엔진이 아니라 직렬화기를 잰다.
+// ── 예산 — 합격 게이트(SPEC.md §14.2) ────────────────────────────────────────
+// 예산의 출처는 **요구**다(SPEC.md §14). 후보의 실측 분포에서 역산하지 않는다 — 그렇게 하면
+// 기준을 후보가 정하게 되고, 전 후보가 함께 느려질 때 아무도 못 잡는다. 어겼다면 약화시키지
+// 말고 원인을 찾아라(퇴행) 아니면 재보정하라(기계) — 재보정은 값을 낮추는 것이 아니라 요구를
+// 다시 재는 것이다(scripts/frontend-demand.sh).
+
+/// feed 예산 — **수요 대비 비율**. 판정은 `feed >= BUDGET_FEED_OF_DEMAND × demand` 다.
+///
+/// 유도(SPEC.md §14.2): 요구는 "미러가 tee gap 의 원인이 되지 않는다"이고, 강의 속도를 정하는 것은
+/// **프론트 터미널**이다(데몬은 프론트가 HIGH_WATERMARK 만큼 밀리면 PTY 읽기를 멈춘다). 그러므로
+/// 미러는 **자기가 미러링하는 프론트보다 빨라야** 한다. 기준 기계에서 잰 두 숫자:
+///
+///   프론트(@xterm/headless 파서, 같은 코퍼스)  109.8 MB/s
+///   tee 관 배달률([`crate::demand`])            187.7 MB/s   → 비 0.585
+///
+/// 그래서 이 비율은 0.6 이다. 관의 배달률은 게이트가 그 기계에서 직접 재므로(엔진 무관·후보 무관),
+/// 예산은 기계를 따라 함께 움직인다 — 느린 CI 에서 위양성이 나지 않고, 후보끼리 견주는 상대 가드도
+/// 필요 없다. **후보가 몇을 내든 이 비율은 바뀌지 않는다.**
+pub const BUDGET_FEED_OF_DEMAND: f64 = 0.6;
+/// rehydrate·cold 지연(ms). 이 축은 엔진이 아니라 직렬화기를 잰다.
 pub const BUDGET_PAINT_MS: f64 = 5.0;
+/// 페인트·봉인 크기(바이트). 유도는 격자의 기하다(SPEC.md §14.2): 복원 창 80×1000 = 80,000 칸,
+/// 칸마다 트루컬러 fg 전환(`ESC[38;2;R;G;Bm`, 최대 19바이트) + 3바이트 문자 = 22바이트 → 1.76 MB.
+/// 그것이 이 격자가 담을 수 있는 **가장 무거운 화면**이고, 2 MiB 는 그 위에 놓인 천장이다.
 pub const BUDGET_PAINT_BYTES: usize = 2 * 1024 * 1024;
 /// 스크롤백 창을 채운 미러 하나의 상주 메모리 증가분. heap 은 게이트가 아니다(0 이 정상일 수 있다).
+/// 유도: 사이드카는 한 워크스페이스의 모든 팬을 미러링하는 배경 서비스다. 팬 16개를 512 MB 안에
+/// 담겠다는 약속이 미러 하나당 32 MB 다(SPEC.md §14.2 S6).
 pub const BUDGET_RSS_BYTES: usize = 32 * 1024 * 1024;
 
-/// 한 유닛의 절대 예산. 어기면 패닉한다 — 벤치가 곧 게이트다.
+/// 한 유닛의 예산. 어기면 패닉한다 — 벤치가 곧 게이트다.
 pub fn assert_within_budget(r: &Report) {
     let u = &r.unit;
+    let floor = r.demand_mb_s * BUDGET_FEED_OF_DEMAND;
     assert!(
-        r.feed_mb_s >= BUDGET_FEED_MB_S,
-        "{u}: feed {:.1} MB/s < 예산 {BUDGET_FEED_MB_S} MB/s",
-        r.feed_mb_s
+        r.feed_mb_s >= floor,
+        "{u}: feed {:.1} MB/s < 예산 {floor:.1} MB/s (= 수요 {:.1} × {BUDGET_FEED_OF_DEMAND}). \
+         이 미러는 자기가 미러링하는 프론트 터미널보다 느리다 — 홍수에서 tee gap 의 원인이 된다.",
+        r.feed_mb_s,
+        r.demand_mb_s
     );
     assert!(
         r.rehydrate_ms <= BUDGET_PAINT_MS,
@@ -368,18 +410,3 @@ pub fn assert_within_budget(r: &Report) {
     );
 }
 
-/// 상대 가드 — 한 실행에 모인 유닛들끼리만 볼 수 있다(그래서 표가 강제한다). 절대 하한만 두면
-/// 느린 기계에서 위양성이 나고, 상대만 두면 전 유닛이 함께 퇴행할 때 아무도 못 잡는다.
-pub fn assert_relative_budget(reports: &[Report]) {
-    let best = reports.iter().map(|r| r.feed_mb_s).fold(0.0_f64, f64::max);
-    for r in reports {
-        assert!(
-            r.feed_mb_s >= best * BUDGET_FEED_RELATIVE,
-            "{}: feed {:.1} MB/s < 같은 실행 최고({:.1})의 {:.0}%",
-            r.unit,
-            r.feed_mb_s,
-            best,
-            BUDGET_FEED_RELATIVE * 100.0
-        );
-    }
-}

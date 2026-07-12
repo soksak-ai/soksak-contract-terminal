@@ -162,7 +162,12 @@ fn cjk_width() -> Vec<u8> {
     rows.extend(pad_line(deficit));
     assert_eq!(rows.len(), RING + 1, "절단 정렬이 픽스처의 전제");
 
-    let mut stream = b"CJK-SEED\r\n".to_vec();
+    // 이 픽스처의 판정(오른쪽 여백의 wide 문자가 다음 줄로 넘어간다)은 **자동 줄바꿈이 켜져 있다**는
+    // 전제 위에 선다. 그 전제를 기본값에 맡기지 않고 스트림이 스스로 선언한다(DECSET 7) — 골든이
+    // "기본값이 무엇이냐"는 별개의 질문에 걸리지 않게. 계약의 출생 상태에서도 이미 켜짐이므로
+    // (SPEC.md §11.I) 이 시퀀스는 화면을 바꾸지 않는다: 픽스처를 자립시킬 뿐이다.
+    let mut stream = b"\x1b[?7h".to_vec();
+    stream.extend_from_slice(b"CJK-SEED\r\n");
     stream.extend_from_slice(&rows);
     stream
 }

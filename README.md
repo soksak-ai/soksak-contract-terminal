@@ -50,28 +50,51 @@ A unit's `tests/conformance.rs` implements `MirrorUnderTest` (the one thing it o
 its engine's representation into the canonical form) and calls `assert_conforms` from seven
 plain `#[test]` functions.
 
+## Where a rule may come from
+
+Every value the contract declares answers to one ladder (SPEC.md §11.A), and **an engine is
+not on it at any rung**. The rungs are: xterm's `ctlseqs` and manual page (our domain's
+specification — the core spawns shells with `TERM=xterm-256color`, and the manual's RESOURCES
+section is the only place initial states are written down); then ECMA-48 and DEC VT510 for
+what a sequence *means*; then UAX #11 for width; then terminfo as corroborating data. When all
+of them are silent, the contract decides and records the decision in the silence table
+(SPEC.md §11.S) with the argument that forced it.
+
+**The contract also declares the state a mirror is born in** (SPEC.md §11.I). It has to: a
+golden declares the whole screen, and a screen includes the modes a stream never mentioned.
+Those values used to come from a running engine — and §13 records what that cost.
+
 ## Bootstrapping a golden
 
 An engine's output can propose a candidate — `SOKSAK_GOLDEN_OUT=<dir> cargo test --test
 conformance -- --ignored dump_goldens`, run from a unit — and comparing the candidates of
 several independent engines is a cheap way to find the places worth thinking about. But
-agreement is evidence, not authority. A candidate becomes a golden only once it is argued
-against the terminal specification, and that argument is written into the file.
+agreement is evidence, not authority: four engines agreeing on a wrong answer produce a wrong
+golden that the suite will then defend forever. A candidate becomes a golden only once it is
+argued against the ladder, and that argument is written into the file — where a test enforces
+it (`tests/goldens_cite_specs.rs` fails if an engine's name appears in a golden's reasoning,
+or if the reasoning cites nothing at all).
 
 ## Current standing
 
-| unit | result |
-| --- | --- |
-| `soksak-sidecar-terminal-alacritty` | 7 / 7 |
-| `soksak-sidecar-terminal-vt100` | 7 / 7 (on the fork that adds DEC Special Graphics) |
-| `soksak-sidecar-terminal-ghostty` | 7 / 7 |
-| `soksak-sidecar-terminal-wezterm` | 7 / 7 (on the fork that makes a wide character obey DECAWM at the margin) |
+| unit | fixtures | performance floor |
+| --- | --- | --- |
+| `soksak-sidecar-terminal-alacritty` | 7 / 7 | ok |
+| `soksak-sidecar-terminal-vt100` | 7 / 7 (on the fork that adds DEC Special Graphics) | ok |
+| `soksak-sidecar-terminal-ghostty` | 7 / 7 | **under** |
+| `soksak-sidecar-terminal-wezterm` | 7 / 7 (on the fork that makes a wide character obey DECAWM at the margin) | **under** |
 
 Both of the engines standing on a fork are there because this suite found a real defect in
 them, and both defects were closed at their owner rather than papered over in the unit. The
-suite also found a bug in the *mirror's own serializer* — a style left active across a line
-break, which bleeds colour on any terminal that erases with the current background. SPEC.md
-§13 has all three, with the reasoning.
+suite also found two bugs in the *mirror's own code*, in every unit: a style left active across
+a line break, which bleeds colour on any terminal that erases with the current background; and
+a restore paint that turned alternate scroll **off** in the user's terminal for every session
+that had never mentioned it — because the contract's idea of a fresh terminal had been read off
+an engine. SPEC.md §13 has them all, with the reasoning.
+
+Two units are below the performance floor (SPEC.md §14.3). The floor is what the front-end
+terminal consumes, and those two mirrors are slower than the terminal they mirror — so in a
+sustained flood the daemon drops their bytes. The standard does not move for them.
 
 ## The gate
 
@@ -81,25 +104,32 @@ and the performance budgets. The benchmark is `#[ignore]`d in the ordinary test 
 slow the development loop — so a budget that only ran when someone remembered to ask for it
 would have been a comment, not a budget. The gate is what makes it binding.
 
-`scripts/gate.sh` **in this repo** runs every unit's gate and then compares them. The relative
-guard on feed throughput — no unit below a quarter of the fastest in the same run — can only be
-seen with the units side by side, so this is the only place it can be enforced. Both gates were
-verified to fail on a breach, not merely to pass without one.
+`scripts/gate.sh` **in this repo** runs every unit's gate and collects the results into one
+table. It does not judge: a unit's verdict is complete on its own, because the unit gate
+measures the machine's demand itself and compares the unit to *that*. The old relative guard —
+no unit below a quarter of the fastest in the same run — is deleted. A judgement that needs the
+other candidates in the room is a judgement the candidates have a hand in.
 
-## Performance is a floor, not a ranking
+## Performance comes from demand, not from the candidates
 
-The suite also measures every unit on one corpus through the same trait — feed throughput, the
-cost of the rehydrate paint and the cold checkpoint, and the memory a mirror holds with its
-scrollback window full. The budgets in SPEC.md §14 are a floor: a terminal's real output peaks
-at a few megabytes per second and the slowest unit consumes the corpus at seventy, so the
-differences between the units vanish into the headroom. The table catches an order-of-magnitude
-regression; it does not crown anyone.
+The floor used to be 50 MB/s, sitting just under the slowest unit, with a second guard that
+compared the candidates to each other. Both numbers were the candidates', not the contract's.
 
-**The default unit is `soksak-sidecar-terminal-alacritty`, and it is not the fastest one.** The
-reason is supply chain: its engine is a published, first-party crate, while two of the others
-run on local forks that close defects this suite found, and one runs on a pinned commit of a
-library whose authors call its API unstable. Speed does not discriminate between them at the
-rates a terminal actually produces. What we depend on does.
+The budgets are now derived from the one requirement there is — *the mirror must not be the
+reason a tee gap happens* — and the requirement resolves to something measurable: the daemon
+stops reading the pty when the **front-end terminal** falls behind, so the front end is what
+sets the speed of the river, and **a mirror must be at least as fast as the front end it
+mirrors**. The front end (xterm.js's parser, fed the same corpus) is measured by
+`scripts/frontend-demand.sh`; the tee pipe it rides is measured by the gate itself, in Rust,
+with no engine and no core. The floor is a ratio of the pipe, so it scales with the machine —
+which is why no candidate comparison is needed to survive a slow CI box.
+
+## No default unit
+
+Every unit that clears the gate is an equal choice, and the plugin manifest must name the one
+it wants. There is no default, because an implicit default is a ranking wearing a shrug: the
+moment one exists, every other unit is a deviation from it. Supply-chain facts (a fork, a pinned
+commit) are recorded because a plugin author needs them — they are not a grade.
 
 ## Licensing
 

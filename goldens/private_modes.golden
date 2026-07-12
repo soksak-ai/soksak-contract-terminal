@@ -1,9 +1,27 @@
-# 근거 — ④ private mode 는 링 창 밖에서도 산다.
-#   모드 세트는 세션 첫머리에 있었고 이후 출력이 링을 넘겨 그 바이트는 창 밖으로 밀렸다. 그래도
-#   모드는 **터미널 상태**이지 화면에 찍힌 바이트가 아니므로 살아 있어야 한다. 켜진 것:
-#   2004(bracketed paste)·1002(button mouse)·1006(SGR mouse)·1(DECCKM app cursor)·DECKPAM(app
-#   keypad)·1004(focus)·1007(alt scroll). 1000(normal mouse)은 세운 적이 없으니 꺼져 있다 —
-#   모드는 독립 플래그이고 1002 가 1000 을 함의하지 않는다.
+# 근거 — ④ private mode 는 화면에 찍힌 바이트가 아니라 **터미널 상태**다.
+#
+# [이 픽스처가 채점하는 것]
+#   모드를 켜는 시퀀스는 세션 첫머리에 있었고, 그 뒤 출력이 링 용량을 넘겨 그 바이트는 창 밖으로
+#   밀렸다. 그래도 모드는 살아 있어야 한다 — 바이트는 흘러가도 상태는 남는다.
+#
+# [규격이 정하는 것 — 켜진 것들 (xterm ctlseqs, DEC Private Mode Set (DECSET))]
+#   Ps = 2 0 0 4  "Set bracketed paste mode, xterm."
+#   Ps = 1 0 0 2  "Use Cell Motion Mouse Tracking, xterm."
+#   Ps = 1 0 0 6  "Enable SGR Mouse Mode, xterm."
+#   Ps = 1        "Application Cursor Keys (DECCKM), VT100."
+#   Ps = 1 0 0 4  "Send FocusIn/FocusOut events, xterm."
+#   Ps = 1 0 0 7  "Enable Alternate Scroll Mode, xterm."
+#   ESC =         "Application Keypad (DECKPAM)."  (같은 상태의 다른 철자가 DECSET 66 =
+#                 "Application keypad mode (DECNKM), VT320" 이다 — 둘은 한 상태를 가리킨다.)
+#
+# [규격이 정하는 것 — 켜지지 않은 것]
+#   Ps = 1 0 0 0 ("Send Mouse X & Y on button press and release")는 이 스트림에 없다. 모드는
+#   저마다 독립한 플래그이고, ctlseqs 어디에도 1002 가 1000 을 함의한다는 조항이 없다. 그래서 꺼짐이다.
+#
+# [초기 상태 — 이 골든이 못박는 것]
+#   1007 은 여기서 **스트림이 명시적으로 켠다**. 계약의 출생 상태에서 1007 은 꺼짐이므로
+#   (SPEC.md §11.I: xterm 의 alternateScroll 리소스 기본값 "false"), 이 골든의
+#   alternate_scroll = 1 은 오직 스트림이 켰기 때문이다 — 엔진의 기본값 때문이 아니다.
 # soksak-contract-terminal — 선언된 화면 상태(골든).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80

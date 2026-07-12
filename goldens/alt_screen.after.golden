@@ -1,18 +1,38 @@
-# 근거 — ③ alt-screen 활성 화면.
-#   DECSET 1049 는 대체 화면으로 전환하고 커서를 저장한다. 대체 화면에는 **스크롤백이 없다**
-#   (그래서 history 0). 프라임 화면과 그 스크롤백은 손대지 않은 채 밑에 남는다 — 이탈 골든
-#   (alt_screen.after)이 그것을 확인한다. 마지막 프레임은 CSI 2J(화면 지움) 뒤 그린 TUI 박스이고,
-#   CSI 2;3H 로 커서를 (x=2, y=1)에, DECRST 25 로 커서를 숨긴다(modes.show_cursor = 0).
-# 국면 — alt 이탈 뒤. DECRST 1049 는 프라임 화면과 저장한 커서를 되돌린다. 그래서 alt 진입 전의
-#   프라임 화면·스크롤백(SCROLLBACK-MARK)이 그대로 돌아오고, 그 위에 BACK-MARK 가 이어진다.
-#   alt 화면의 내용은 사라진다(대체 화면은 보존되지 않는다).
+# 근거 — ③ 대체 화면(alt-screen)이 활성인 상태.
+#
+# [규격이 정하는 것 — 전환]
+#   xterm ctlseqs, DEC Private Mode Set (DECSET), Ps = 1 0 4 9: "Save cursor as in DECSC, xterm.
+#   After saving the cursor, switch to the Alternate Screen Buffer, clearing it first."
+#   세 가지가 한 시퀀스에 묶여 있다: 커서 저장 · 대체 화면 전환 · 그 화면 지움.
+#
+# [규격이 정하는 것 — 대체 화면에는 스크롤백이 없다]
+#   같은 문서가 1049 를 "1047 과 1048 의 효과를 합친 것"이라 하고, 1047 은 Alternate Screen
+#   **Buffer** 를 쓰는 모드다. 버퍼는 화면 하나이고 그 위로 밀려나는 이력이 없다 — TUI 가 화면을
+#   통째로 다시 칠하는 동안 스크롤백에 프레임이 쌓인다면 어떤 TUI 도 쓸 수 없다. 그래서 history 0 이다.
+#
+# [규격이 정하는 것 — 마지막 프레임]
+#   CSI 2 J = Erase in Display, "Ps = 2 -> Erase All"(ctlseqs, CSI Ps J).
+#   CSI 2 ; 3 H = Cursor Position, "[row;column] (default = [1,1])"(ctlseqs, CSI Ps ; Ps H) —
+#   1-base 행2·열3 이므로 정규형의 0-base 커서는 (x=2, y=1)이다.
+#   CSI ? 2 5 l = "Hide cursor (DECTCEM), VT220"(ctlseqs, DECRST) → modes.show_cursor = 0.
+#
+# [초기 상태]
+#   스트림이 건드리지 않은 모드는 계약이 선언한 출생 상태 그대로다(SPEC.md §11.I).
+#
+# 국면 — 대체 화면에서 나온 뒤.
+#
+# [규격이 정하는 것]
+#   xterm ctlseqs, DECRST, Ps = 1 0 4 9: "Use Normal Screen Buffer and restore cursor as in
+#   DECRC, xterm." 프라임 화면과 저장해 둔 커서가 돌아온다. 대체 화면의 내용은 복구 대상이 아니다 —
+#   1049 가 진입할 때 그 버퍼를 지우고 시작했듯(위 인용), 나올 때도 그 버퍼는 버려진다.
+#   그래서 alt 진입 전의 프라임 화면·스크롤백(SCROLLBACK-MARK)이 그대로 돌아오고 BACK-MARK 가 잇는다.
 # soksak-contract-terminal — 선언된 화면 상태(골든).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
 rows 24
 alt 0
 cursor 0 23
-modes 0 0 0 0 0 0 0 0 0 1 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+modes 0 0 0 0 0 0 0 0 0 0 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
 history 8
 visible 24
 # |SCROLLBACK-MARK line1|

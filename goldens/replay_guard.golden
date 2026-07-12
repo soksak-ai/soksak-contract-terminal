@@ -1,14 +1,37 @@
-# 근거 — ⑤ 질의는 화면을 만들지 않는다.
-#   DA1(CSI c)·DA2(CSI > c)·DSR(CSI 6n)·OSC 11 질의는 응답을 요구하는 제어열이지 인쇄 가능한
-#   텍스트가 아니다 — 화면에는 아무것도 남기지 않는다(ECMA-48). 그래서 골든은 두 마커만 담는다.
-#   미러는 응답하지 않고 삼킨다(suppressed 계수), 재생 페인트에도 질의 바이트가 실리지 않는다.
+# 근거 — ⑤ 질의는 화면을 만들지 않는다. 그리고 이 골든이 **출생 상태를 못박는다**.
+#
+# [규격이 정하는 것 — 질의는 응답을 요구하지 화면을 바꾸지 않는다]
+#   DA1  (CSI c)   ECMA-48 §8.3.24(DA): "If the parameter value is 0, DA is used to **request an
+#                  identifying DA from a device**." — 요청이지 인쇄물이 아니다.
+#   DA2  (CSI > c) xterm ctlseqs: "Send Device Attributes (Secondary DA) … request the terminal's
+#                  identification code."
+#   DSR  (CSI 6 n) ECMA-48 §8.3.35(DSR): "DSR is used either to report the status of the sending
+#                  device or to **request a status report** from the receiving device."
+#                  ctlseqs: "Ps = 6 -> Report Cursor Position (DECXCPR). The **response** [row;column]
+#                  is returned as CSI r ; c R."
+#   OSC 11 ?       ctlseqs(동적 색상): "If a "?" is given rather than a name or RGB specification,
+#                  xterm **replies** with a control sequence of the same form."
+#   넷 다 산출물이 **호스트로 가는 응답**이지 화면에 놓이는 글리프가 아니다. 그래서 골든에는 두
+#   마커만 남는다.
+#
+# [계약이 여기에 더하는 것]
+#   미러는 응답하지 않는다(단일 응답자는 라이브 프론트 터미널 하나다). 삼킨 질의는 세지고
+#   (suppressed), 재생 페인트에는 질의 바이트가 실리지 않는다 — 실리면 복원 때 두 번째 응답이
+#   셸 stdin 을 오염시킨다(SPEC.md §9 축3).
+#
+# [출생 상태 — 이 골든이 못박는 자리]
+#   이 스트림은 모드를 하나도 건드리지 않는다. 그러므로 아래 modes 줄은 계약이 선언한 **출생
+#   상태 그 자체**다(SPEC.md §11.I). 켜진 채 태어나는 것은 둘뿐이다:
+#     show_cursor (DECTCEM) — xterm 매뉴얼, Do Soft Reset: "Make the cursor visible."
+#     line_wrap   (DECAWM)  — xterm 매뉴얼, RESOURCES: "autoWrap … The default is "true"."
+#   나머지 열하나는 꺼진 채 태어난다. 그 근거는 SPEC.md §11.I 표와 침묵 표 §11.S(S3·S4)에 있다.
 # soksak-contract-terminal — 선언된 화면 상태(골든).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
 rows 24
 alt 0
 cursor 0 2
-modes 0 0 0 0 0 0 0 0 0 1 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+modes 0 0 0 0 0 0 0 0 0 0 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
 history 0
 visible 24
 # |GUARD-MARK|

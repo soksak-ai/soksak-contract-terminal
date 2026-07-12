@@ -257,11 +257,19 @@ consumer couples to a specific engine. M3 wires both `soksak-plugin-terminal`
 ]
 ```
 
-**The plugin manifest selects the unit.** `interface` pins the contract
-(`soksak-sidecar-terminal-spec@1`); `name` picks which engine unit implements it
-(`terminal-alacritty` today, `terminal-wezterm` when a plugin ships it). One
-contract, one running engine unit behind a plugin at a time — declaring it is the
-whole cost of consuming it.
+**The plugin manifest selects the unit, and there is no default.** `interface` pins the
+contract (`soksak-sidecar-terminal-spec@1`); `name` picks which conforming engine unit
+implements it. A plugin that names no unit is an error, not a plugin that gets one chosen
+for it — an implicit default is a ranking wearing a shrug, and the moment one exists every
+other unit is a deviation from it. Every unit that clears the gate is an equal choice; the
+plugin author makes the choice and writes it down.
+
+**Supply-chain facts are recorded, not graded.** Two engines currently run on a local fork
+that closes a defect this suite found, and one runs on a pinned commit of a library its own
+authors call unstable (§13). Those are true, they matter to whoever picks a unit, and they
+belong in the record — but they are not a rung on any ladder here. This contract judges one
+thing: does the unit produce the declared screen, and does it clear the floor. A unit that
+does both is conformant, and nothing about its packaging makes it more so.
 
 ## 11. Screen state — the canonical form
 
@@ -270,42 +278,162 @@ same. Engines represent the same picture differently, and until now those differ
 were settled implicitly by whichever engine happened to be the judge. They are settled
 here instead, by rule. The types are in `src/state.rs`; the rules are these.
 
-**N1 — Colour is an index or an RGB triple, never a name.** A palette colour is its
-index. Some engines split the palette into "named" (0–15) and "indexed" (16–255); that
-split is one engine's internal representation, not a property of the screen. Default
-foreground and background stay *default* — they are theme-relative and are never
-resolved to concrete RGB.
+### 11.A The authority ladder — where a rule may come from
 
-**N2 — A trailing run of blank cells is not part of the row.** Whether a terminal
-padded the row to its full width with spaces or simply never touched those columns, the
-screen is the same, so the canonical row ends at its last non-blank cell.
+A standard is only as good as its sources. Every value this contract declares — every
+golden cell, every mode, every initial state — is answerable to this ladder, and to
+nothing else. **An engine is not an authority at any rung.** Four engines agreeing is
+evidence that a question is settled somewhere; it is never the settlement.
 
-**N3 — A wide character is one cell that occupies two columns.** The body cell carries
-the character and is marked wide; the column it also covers is not represented. Engines
-that store an explicit spacer cell and engines that do not therefore compare equal.
+**Rung 1 — xterm: `ctlseqs` and the manual page.** Not because xterm is an
+implementation we like, but because it is the *specification of our domain*. The core
+spawns every shell with `TERM=xterm-256color` (`src-tauri/src/pty.rs`), so the shell
+emits what an xterm-compatible terminal is documented to accept, and the front end that
+renders it is xterm.js or a ghostty webview. The documents are therefore not one
+vendor's behaviour — they are the written interface both ends of our system were built
+against. `ctlseqs` gives the sequences; the manual's **RESOURCES** section gives the
+**initial states** (`autoWrap`, `appcursorDefault`, `alternateScroll`, …), which no
+other document in the ladder supplies.
 
-**N4 — A cell with no text is a space.** An "empty" cell, however an engine encodes it
-(codepoint zero, an empty string, a sentinel), is a space.
+**Rung 2 — ECMA-48 and DEC VT510.** For the *meaning* of a sequence, and for structure
+(what a control function is, what a mode is). **Not for initial values.** A DEC
+power-on default is a fact about a 1980s glass terminal, not a norm for a mirror inside
+a 2020s workspace; where rung 1 states an initial state, rung 2 does not get a vote,
+and where rung 1 is silent, we go to rung 4 rather than borrow DEC's power-on habits.
+(Rung 2 may still *corroborate* — noted as corroboration, never as the ground.)
 
-**N5 — Underline is a boolean.** The contract restores SGR 4; a double, curly, dotted or
-dashed underline is not distinguished, because the contract does not promise to carry
-the distinction.
+**Rung 3 — UAX #11.** Character width. Nothing else in the ladder defines it.
 
-**N6 — A space carries only the attributes that are visible on a space.** A space has no
-glyph, so a foreground colour, bold, dim, italic, and hidden draw nothing on it; only the
-background, inverse, underline, and strikeout do. The canonical form therefore drops the
-invisible ones from a space. (Inverse is the exception that proves it: under inverse the
-foreground *becomes* the visible background, so it is kept.)
+**Rung 3.5 — terminfo (data, not implementation).** The terminfo database is the
+capability contract the *shell* writes against: it is data every program consults, not
+one program's behaviour. `terminfo(5)` defines `am` as "terminal has automatic
+margins", and the ncurses source (`terminfo.src`, entry `xterm-basic`, which
+`xterm-256color` inherits through `xterm-new` → `xterm-p370`) declares `am` — as does
+the installed database (`infocmp xterm-256color`). It corroborates rung 1; it does not
+overrule it.
 
-  N6 is not a convenience. It was forced by an observed engine difference: at least one
-  engine, when the cursor auto-wraps to a new line, leaves the untouched cells of that
-  line carrying the pen's current SGR. Those cells look like blanks on screen and differ
-  only in the model. Folding them is the contract choosing the screen over the model —
-  and it is the rule that keeps a representation difference from being reported as a
-  defect.
+**Rung 4 — we decide, and we write down why.** When every document above is silent, the
+contract makes the call from first principles (grid geometry, the render model, what a
+program can and cannot rely on) and records it in the **silence table** (§11.S). A
+decision on this rung is still a decision *of the contract* — it is never "whatever the
+engines happened to do".
 
-**N7 — Cursor visibility is `show_cursor`, once.** DECTCEM is a mode; the canonical form
-does not also carry a separate cursor-visible flag.
+### 11.I The initial state — a mirror is born here
+
+A golden declares the whole screen, and a screen includes the modes that were never
+mentioned in the stream. Those values have to come from somewhere, and until now they
+came from whichever engine was consulted: Alacritty's `TermMode` default carried
+`ALTERNATE_SCROLL`, and the other three units were built to agree with it — two of them
+by writing `alternate_scroll: true` into their own seat. That is a standard set by a
+candidate, in the purest form.
+
+**The contract declares the state a mirror is born in.** An engine whose power-on
+default differs is put into this state at birth by its unit; the unit's seat owes the
+contract that, exactly as it owes it the canonical form. The engine's default is not a
+fact about the screen — it is a fact about the engine.
+
+| born state | value | where it comes from |
+| --- | --- | --- |
+| `line_wrap` (DECAWM) | **set** | Rung 1, xterm manual, RESOURCES: *"autoWrap (class AutoWrap) — Specifies whether or not auto-wraparound should be enabled. This is the same as the VT102 DECAWM. **The default is "true"**."* Corroborated at rung 3.5: the `xterm-256color` entry declares `am`. |
+| `show_cursor` (DECTCEM) | **set** | Rung 1, xterm manual, *Do Soft Reset* — of the states both soft and full reset establish: *"**Make the cursor visible**, with shape reset according to the cursorUnderLine and cursorBar resources."* |
+| `app_cursor` (DECCKM) | **reset** | Rung 1, xterm manual: reset *"resets DECCKM and DECKPAM per resources appcursorDefault and appkeypadDefault"*; *"appcursorDefault … **The default is "false"**."* |
+| `app_keypad` (DECKPAM / DECNKM 66) | **reset** | Rung 1, same clause; *"appkeypadDefault … **The default is "false"**."* |
+| `alternate_scroll` (1007) | **reset** | Rung 1, xterm `ctlseqs`: *"The initial state of Alternate Scroll mode is set using the **alternateScroll resource**."* → xterm manual: *"alternateScroll (class ScrollCond) … **The default is "false"**."* |
+| `bracketed_paste` (2004), `mouse_click` (1000), `mouse_drag` (1002), `mouse_motion` (1003), `sgr_mouse` (1006), `utf8_mouse` (1005), `focus_in_out` (1004) | **reset** | §11.S **S4** — the documents name no initial value, so the contract decides. |
+| `insert` (IRM) | **reset** | §11.S **S5**. |
+
+The mode vector of any golden whose stream never touches a mode is therefore a
+restatement of this table; fixture ⑤ (`replay_guard`) is the one that says nothing else,
+so it is where the birth state is pinned.
+
+**The rule has teeth beyond the goldens.** The restore paint may only mention a mode the
+*session* changed. While the contract's initial state was Alacritty's, every unit's paint
+emitted `ESC[?1007l` for a session that had never heard of mode 1007 — quietly turning
+alternate scroll **off** in the user's terminal on every restore, because one engine's
+power-on default said it was on and the paint was written to reconcile against that.
+Deriving the birth state from the specification deleted that line.
+
+### 11.S The silence table — what we decided, and why
+
+When the ladder is silent, the contract decides. Each decision is listed here with the
+silence that forced it, so that a future reader can tell a *judgement* from a
+*specification* at a glance — and can overturn a judgement without touching a
+specification.
+
+| # | question | who is silent, and why | our decision | the argument |
+| --- | --- | --- | --- | --- |
+| **S1** | A double-width character with **one column left** before the right margin. | VT510's DECAWM clause speaks of the cursor being *at* the right border, not of a character that *does not fit* in what is left; DEC terminals had no double-width characters, so the case did not exist for them. UAX #11 defines width and says nothing about terminal wrapping. `ctlseqs` does not treat the case either. | The character **moves to the next line**; the reserved column stays blank. | A width-2 character occupies two adjacent columns (UAX #11). Placing it in column 79 of an 80-column grid needs column 81, which does not exist. The remaining options are (a) wrap, (b) drop the character, (c) draw half of it. (b) loses input bytes; (c) is not expressible in a cell model. So (a). |
+| **S2** | Which Unicode codepoints the **DEC Special Graphics** glyphs are. | DEC named glyphs (VT100 User Guide, Table 3-9) in an era with no Unicode; `ctlseqs` defines the *designation* (`ESC ( 0`) but ships no glyph table. | The Box Drawing characters whose **Unicode names describe the same geometry** as DEC's glyph names. | The mapping is forced, not chosen: DEC's "upper-left corner" and U+250C BOX DRAWINGS LIGHT DOWN AND RIGHT describe one shape. Light weight, because DEC's set draws a single-weight grid — Heavy or Double would invent a distinction DEC did not make. |
+| **S3** | The initial state of **mouse reporting** (1000/1002/1003/1005/1006), **bracketed paste** (2004) and **focus reporting** (1004). | `ctlseqs` defines each as *Enable X* / *Disable X* and gives no initial value; the manual has no resource for any of them. | **Reset** (off). | These modes change what the terminal *sends to the application*. A terminal that reported mouse clicks, or wrapped pastes in brackets, without being asked would corrupt the input of every program that never asked — and every program that wants them enables them first. A ground state that breaks the programs older than the feature is not a ground state. |
+| **S4** | The initial state of **IRM** (insert vs replace). | Rung 1 does not list IRM among the states a reset establishes. | **Replace.** | Insert mode changes what *every* subsequent printed character does to the row it lands on. A terminal born in INSERT would shove the existing line rightwards on every write, so no program that assumes overwrite — which is all of them until they say otherwise — could print correctly. *(Corroboration, not ground: ECMA-48 Table 6 lists REPLACE as IRM's reset state, and §7.1 recommends that "the reset state of the modes be the initial state".)* |
+| **S5** | What a **space** shows. | No specification says which cell attributes are visible on a blank glyph — that is a question about rendering, not about the byte stream. | Only `bg`, `inverse`, `underline` and `strikeout` survive on a space; `fg`, `bold`, `dim`, `italic` and `hidden` are dropped. | See **N6**: it is a statement about the render model, and it is argued there. |
+| **S6** | How big the sidecar may be. | Nothing outside this contract says how much memory a background mirror service may hold. | **16 panes inside 512 MB → 32 MB per mirror** (§14.2). | A workspace's panes are all mirrored at once, and the sidecar is a *background* service: it may not compete with the app for memory. The promise is stated in the currency a user has (panes), not in the currency an engine has (cells). |
+| **S7** | Everything the **performance budgets** rest on. | No specification says how fast a terminal mirror must be. | Derived from the system's measured demand, never from what the candidates happen to achieve. | See **§14**. |
+
+Every rule below is answerable to §11.A. Where a specification decides the question, it
+is cited; where none does, the rule is a contract decision and says so, with its entry in
+the silence table (§11.S).
+
+**N1 — Colour is an index or an RGB triple, never a name.** SGR names no colours: it
+numbers them. ECMA-48 §8.3.117 (SGR) gives 30–37 / 40–47 as numbered parameters, and
+`ctlseqs` extends the same numbering to 256 indices and to a 24-bit triple (`CSI 38 ; 2 ;
+R ; G ; B m`). "Named" (0–15) versus "indexed" (16–255) is a split some engines make
+internally; no document makes it, and the screen does not have it. Default foreground and
+background stay *default* — a terminal resolves them against its theme at paint time, so
+resolving them here would freeze one theme into the standard.
+
+**N2 — A trailing run of blank cells is not part of the row.** Contract decision (no
+document speaks of row equality). The argument is the render model: a cell the terminal
+padded with a space and a cell it never touched paint the same pixels, so no observer of
+the screen can tell them apart. Comparing them would grade the engine's memory, not the
+screen.
+
+**N3 — A wide character is one cell that occupies two columns.** UAX #11 §5: a Wide
+character, "in fixed-pitch fonts … take[s] up one Em of space", and one Em on a
+character grid is two cells. So the character *is* one thing standing on two columns.
+Whether an engine also stores a spacer object in the second column is bookkeeping; the
+screen shows one glyph over two columns either way, so the canonical form carries the
+body cell and marks it wide.
+
+**N4 — A cell with no text is a space.** Contract decision. A grid has no "absence" to
+render: every column of every row paints something, and what an untouched column paints
+is a blank. Engines encode that blank as codepoint zero, an empty string, or a sentinel;
+those are three spellings of one screen.
+
+**N5 — Underline is a boolean.** The contract restores SGR 4 (ECMA-48 §8.3.117, "singly
+underlined"). The styled underlines (`CSI 4 : 3 m` and kin, `ctlseqs`) are not carried,
+and the canonical form does not pretend to distinguish what the paint does not preserve.
+A standard that graded a distinction its own restore path drops would be grading a lie.
+
+**N6 — A space carries only the attributes that are visible on a space.** Contract
+decision (§11.S **S5**), and it is a statement about **rendering**:
+
+  A space has no ink. Painting a cell means drawing a glyph in the foreground colour on a
+  field of the background colour — and where there is no glyph, everything that acts *on
+  the glyph* draws nothing. Foreground colour, bold, dim, italic and hidden all describe
+  how the glyph is drawn, so on a space they describe the drawing of nothing. What remains
+  visible on an empty cell is exactly what does not need a glyph: the ones that **fill or
+  invert the field** (background, inverse) and the ones that **draw a line through the
+  cell** (underline, strikeout). Those are kept; the rest are dropped.
+
+  Inverse is the case that proves the rule rather than breaking it. Under inverse the
+  foreground and background swap, so the foreground colour stops describing a glyph and
+  starts painting the field — it becomes visible precisely because it is no longer being
+  used as ink. So a space under inverse keeps its foreground, and the rule is unchanged:
+  *keep what is visible on a blank cell.*
+
+  This is what makes the difference between a difference in the model and a difference on
+  the screen. An engine that leaves the pen's colour on the cells of a line it has just
+  exposed, and an engine that leaves them clean, have produced the same screen; a standard
+  that could not say so would manufacture a defect out of bookkeeping. It is also why the
+  rule is *narrow*: it folds only what cannot be seen. When the pen carries **inverse**,
+  the fill is not invisible — and §13 records the real restore bug that hid behind exactly
+  that case.
+
+**N7 — Cursor visibility is `show_cursor`, once.** DECTCEM is a mode (`ctlseqs`: `CSI ? 25
+h` / `l`, "Show cursor (DECTCEM), VT220"), and the canonical form already carries the mode
+set. A second, separate flag for the same fact could only ever be a way for the two to
+disagree.
 
 ## 12. Goldens — the declared screens
 
@@ -317,14 +445,50 @@ by its plain text so the file can be read as a screen and reviewed as a table.
 A golden is **declared, not recorded**. An engine's output may be used to bootstrap a
 candidate (`dump`, behind `--ignored`), and cross-checking the candidates of several
 independent engines is a cheap way to find the places worth thinking about — but
-agreement is evidence, not authority. What makes a golden a golden is the reasoning
-against the terminal specification written at the top of the file: fixture ⑦ declares
-box glyphs because the DEC Special Graphics table maps `l` to U+250C, not because some
-engine drew a box.
+agreement is evidence, not authority. Four engines agreeing on a wrong answer produces a
+wrong golden and a suite that will never see it again.
 
-Where the engines disagreed, the contract judged. §13 records those judgements.
+What makes a golden a golden is the **argument at the top of the file**, and that argument
+answers to the ladder (§11.A): it cites the specification that settles the question, or —
+where none does — it names the silence-table entry where the contract decided (§11.S).
+Fixture ⑦ declares box glyphs because Unicode's Box Drawing names describe the same
+geometry DEC's glyph table names, not because an engine drew a box.
+
+**The rule is enforced, not merely stated.** `tests/goldens_cite_specs.rs` fails the build if
+an engine's name appears anywhere in a golden's reasoning, and fails it if a golden's
+reasoning cites neither a specification nor a silence-table entry. Prose discipline decays;
+a test does not.
+
+Where the engines disagreed — and where they agreed on something the specification does not
+say — the contract judged. §13 records those judgements.
 
 ## 13. Candidate review
+
+**The initial state was an engine's, and all four units agreed with it.** This is the finding
+that matters most, because nothing failed. Every golden declares the whole mode vector,
+including the modes the stream never mentions — and those values had been read off a running
+engine. Alacritty's `TermMode` default carries `ALTERNATE_SCROLL`, so `alternate_scroll = 1`
+went into the goldens as the state a mirror is born in. The other three units were then built
+to match: the ghostty seat read its engine's mode 1007 (also on by default), and the wezterm
+and vt100 seats wrote `alternate_scroll: true` into their own initializers by hand. Four
+units, unanimous, 7 of 7 — and the value was never anything but one engine's habit.
+
+The specification says otherwise, and says it twice. `ctlseqs`: *"The initial state of
+Alternate Scroll mode is set using the alternateScroll resource."* The xterm manual:
+*"alternateScroll (class ScrollCond) … The default is "false"."* The contract now declares the
+birth state from those documents (§11.I), and the units are put into it — the standard moved
+the engines, which is the only direction that was ever allowed.
+
+  **The bug it was hiding.** The restore paint is written as a delta from the state a fresh
+  terminal is in. While that state was Alacritty's, every unit's `mode_sets` emitted
+  `ESC[?1007l` whenever the mirror's `alternate_scroll` was false — which is to say, for every
+  ordinary session, none of which has ever heard of mode 1007. So a warm restore reached into
+  the user's terminal and **turned alternate scroll off**, on a session that never asked for it
+  to be either on or off, because one engine's power-on default said it was on and the paint
+  existed to reconcile against that default. With the birth state derived from the
+  specification, the line is simply gone: the paint now mentions 1007 only when the session
+  set it. Nothing detected this. Nothing could: the suite compared the mirror to a golden that
+  agreed with the engine, and the engine agreed with itself.
 
 **Wide character at the right margin — three engines against one.** With 79 columns
 filled and one column left, the corpus prints a double-width character. A width-2
@@ -394,54 +558,96 @@ window the moment pruning fires — the mirror kept 588 rows where the corpus de
 **avt, shpool_vt100 — rejected on the record.** Neither maintains the scrollback and
 private-mode state the contract restores, so neither reaches the fixtures.
 
-## 14. Performance — a floor, not a ranking
+## 14. Performance — derived from demand, never from the candidates
 
-A terminal's real output arrives at a few megabytes per second at its very loudest. The
-slowest engine unit measured here consumes the corpus at seventy, and the fastest at a
-hundred and sixty-six. Every unit therefore has more than an order of magnitude of headroom,
-and the gap between them disappears entirely into it.
+The budgets used to say a terminal's real output "arrives at a few megabytes per second at
+its very loudest", and set the floor at 50 MB/s. Both numbers were unsourced. Worse, the
+floor sat just under the slowest unit measured, and the second gate — *no unit below a
+quarter of the fastest in the same run* — compared the candidates against each other. A
+standard whose numbers are read off the candidates is a standard the candidates set: let all
+four regress together and the floor follows them down, and there is nothing left to notice.
 
-So this section does not pick a winner. **These budgets are a floor** — they exist to catch a
-regression of an order of magnitude, not to rank implementations whose differences do not
-reach the user. Reading the table as a leaderboard would be reading it wrong.
+So the budgets are re-derived from the **requirement**. There is exactly one:
 
-**Which unit is the default, and why it is not the fastest.** The default is
-`soksak-sidecar-terminal-alacritty`, and the reason is supply chain, not speed. Its engine is
-a published, first-party crate. The vt100 and wezterm units each run on a local fork that
-closes a defect this suite found, and ghostty runs on a pinned commit of a library whose API
-its own authors declare unstable. The performance difference between them is invisible at the
-rates a terminal actually produces; the difference in what we depend on is not. That is the
-axis that discriminates, so that is the axis that decides.
+> **The mirror must not be the reason a tee gap happens.**
 
-### 14.1 The corpus and the method
+A gap is a real loss: the daemon drops a slow subscriber's bytes rather than block the live
+path (§6.2). It is loud, never silent — but a mirror that gaps is a mirror that lost the
+screen it exists to keep. And no queue depth saves a *sustained* deficit: if the mirror is
+slower than what feeds it, a long enough flood always overflows.
 
-One corpus, one trait, every unit — numbers only compare if everyone eats the same thing. The
-corpus is the seven fixture streams followed by a full-screen truecolour TUI redraw (the
-pattern that hits a mirror hardest in real use), and a separate scrollback fill that pushes
-more rows than the restore window holds. Sizes are reported by the suite itself rather than
-by this document, so they cannot drift from it.
+### 14.1 What actually feeds the mirror — the demand, measured
 
-Five repeats, median, release build, one unit at a time on an otherwise idle machine.
+Three rates matter, and only the third one is the requirement.
 
-**Memory is two numbers, and the second one is the point.** `heap` counts what passes through
-the process allocator: exact, but blind to anything that does not. `rss` is the resident
-growth: coarse, but it sees everything. One engine maps its grid pages directly, so its heap
-reads as zero — a single number would have concluded it uses no memory at all. The memory axis
-is also measured **first**: run it after the others and the allocator reuses what they warmed,
-and resident growth reports zero for everyone.
+**The PTY ceiling.** The fastest the OS can carry bytes through a pty at all. No producer can
+beat it — anything that has to *compute* what it prints loses to a `cat` that merely copies
+bytes it already has. Measured here: **≈ 200–240 MB/s**.
+
+**The tee pipe.** The mirror does not eat the pty; it eats the tee, and every byte reaches it
+through the path §6.2 specifies: pty read → ring → length-prefixed frame → unix socket →
+sidecar read. Standing that pipe up (`src/demand.rs`, no daemon crate, no engine, no VT)
+gives **≈ 190 MB/s**. Note what this number means: **the pipe is faster than any VT parser
+that has ever existed.** A budget of "beat the pipe" would be a budget no implementation can
+meet — a category error, not a strict standard.
+
+**The front-end terminal — this is the demand.** The daemon's read loop writes to the
+attached front end and *pauses reading the pty* when the front end is `HIGH_WATERMARK` bytes
+behind. The river's speed is therefore set by neither the kernel nor the mirror: **it is set
+by the terminal the user is looking at.** The requirement follows exactly:
+
+> **A mirror must be at least as fast as the front end it mirrors.**
+
+Below that line it falls behind on output the user could actually read, and gaps. Above it,
+it can only gap when the front end is drowning too — and a screen nobody could see is not a
+screen the mirror failed to keep. Measured on the front end this system ships (xterm.js's
+parser and buffer through `@xterm/headless`, fed the *same corpus*, `scripts/frontend-demand.sh`):
+**≈ 110 MB/s** — that is 0.585 of the tee pipe on the same machine.
+
+The gate cannot run node, and it should not have to: the front-end rate is a *ratio* of the
+pipe's rate, and the pipe the gate can measure itself, in Rust, with no engine and no core.
+So the budget is expressed as that ratio. It scales with the machine — a slow CI box has a
+slow pipe too — which is why the relative-to-the-fastest-candidate guard is **deleted** and
+not replaced. Machine variance is handled by measuring the machine, not by comparing
+candidates.
+
+Reading the measurement is regulated, not left to taste: release build, an otherwise idle
+machine, five repeats, median. **Recalibration means re-running the measurement**
+(`scripts/frontend-demand.sh` and `cargo test --release --test demand -- --ignored`), never
+lowering a number until the units fit under it.
 
 ### 14.2 Budgets
 
-| axis | budget | what it guards |
+| axis | budget | where the number comes from |
 | --- | --- | --- |
-| feed throughput | **≥ 50 MB/s** *and* **≥ ¼ of the fastest unit in the same run** | Both must hold. The absolute floor alone gives false failures on a slow CI machine; the relative guard alone cannot see every unit regressing together. |
-| rehydrate | **≤ 5 ms**, paint **≤ 2 MB** | This axis measures the **serializer, not the engine** — every unit produces the same paint from the same screen. It is a guard against the serializer regressing. |
-| cold paint | **≤ 5 ms**, sealed **≤ 2 MB** | As above. |
-| memory | **rss ≤ 32 MB** | `heap` is an observation, **not a gate**: zero is a legitimate value for an engine that maps its own pages. |
+| feed throughput | **≥ 0.6 × the tee pipe's delivery rate, measured on this machine** | The mirror must outrun the front end (§14.1). The front end measures 0.585 of the pipe; 0.6 is that, rounded up. No candidate's score appears anywhere in this derivation. |
+| rehydrate | **≤ 5 ms** | A warm reattach must be invisible. One frame at 60 Hz is 16.7 ms, and the paint has to be serialized, relayed over a socket, and parsed by the front end inside it. Five milliseconds is the serializer's share — under a third of the frame. |
+| cold paint | **≤ 5 ms** | As above; a checkpoint runs on a live session and may not stall it for a frame. |
+| paint / sealed size | **≤ 2 MiB** | Geometry, not measurement. The restore window is 80 × 1000 = 80,000 cells. The heaviest screen a cell grid can hold changes style at every cell: a truecolour foreground (`CSI 38;2;R;G;B m`, ≤ 19 bytes) plus a 3-byte character = 22 bytes per cell ≈ 1.76 MB. 2 MiB is the ceiling over that worst case. |
+| memory | **rss ≤ 32 MB** | §11.S **S6**: the sidecar mirrors every pane of a workspace and is a background service — sixteen panes inside 512 MB is the promise, so one mirror gets 32 MB. `heap` is reported but **is not a gate**: zero is a legitimate value for an engine that maps its own grid pages. |
 
-The absolute numbers are calibrated against a current desktop CPU. They are not the
-requirement; the requirement is that no unit regresses by an order of magnitude, and these are
-what that means today. Recalibrate them rather than weaken them.
+**These budgets do not rank anyone.** They are a floor, and a floor has no first place. The
+comparison table prints `ok` or `UNDER` against the floor and nothing else — the star that
+used to crown the fastest unit is gone with the guard that made it mean something.
+
+### 14.3 Standing, and the two units that do not clear the floor
+
+On the reference machine (Apple silicon, idle, release):
+
+| unit | feed | vs. floor (≈ 113 MB/s) |
+| --- | --- | --- |
+| `soksak-sidecar-terminal-vt100` | 168 MB/s | ok |
+| `soksak-sidecar-terminal-alacritty` | 155 MB/s | ok |
+| `soksak-sidecar-terminal-ghostty` | 95 MB/s | **under** |
+| `soksak-sidecar-terminal-wezterm` | 72 MB/s | **under** |
+
+Two units are slower than the front-end terminal they mirror. Under the old floor (50 MB/s,
+read off the candidates) both passed comfortably; under the requirement they do not, and what
+that means is concrete: in a sustained flood the front end keeps up and the mirror does not,
+so the daemon drops the mirror's bytes and the restored screen is missing the middle of it.
+
+The standard does not move for them. A unit that cannot clear the floor is a unit whose engine
+must get faster — or a unit whose non-conformance is recorded, in the open, here.
 
 ## 15. The gate — where a verdict is actually made
 
@@ -455,10 +661,16 @@ whole judgement in one command: the seven fixtures against the declared goldens,
 tests, the real-daemon integration, and the performance budgets of §14.2 — every one of them
 blocking. Nothing in it is optional and nothing in it can be skipped by forgetting.
 
-**The fleet gate is where the relative guard lives.** A unit on its own cannot tell whether it
-got slower or the machine did; that only shows when the units stand side by side. So
-`scripts/gate.sh` in this repo runs every unit's gate, then compares them — and fails if any
-unit falls below a quarter of the fastest in that same run. A unit gate alone cannot enforce
-that, which is exactly why the fleet gate exists rather than being a convenience wrapper.
+**A unit's verdict is complete on its own.** It has to be: a judgement that needs the other
+candidates in the room is a judgement the candidates have a hand in. The unit gate measures
+the machine's demand itself (§14.1) and compares the unit to *that*, so it never needs to know
+what anyone else scored. The fleet gate in this repo runs every unit's gate and prints one
+table — it collects verdicts, it does not make them. The old relative guard ("no unit below a
+quarter of the fastest in the same run") lived here and is deleted.
+
+The gate also enforces the one rule the goldens cannot enforce about themselves: **no engine's
+name may appear in a golden's reasoning** (`tests/goldens_cite_specs.rs`). A golden argued
+from what an engine does is a golden that has an engine for an author, however carefully the
+prose is worded.
 
 Both gates were verified to fail when a budget is breached, not merely to pass when it is not.

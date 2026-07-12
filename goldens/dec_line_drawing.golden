@@ -15,7 +15,7 @@
 #   ("Codes 152₈-156₈, 161₈, and 164₈-170₈ are used to draw rectangular grids; each piece of this line
 #    drawing set is contiguous with others so that the lines formed are unbroken.")
 #
-# [규격이 정하지 않는 것 — 이 항목은 우리가 정한다: SPEC.md §11.S 침묵 표 S3]
+# [규격이 정하지 않는 것 — 이 항목은 우리가 정한다: SPEC.md §11.S 침묵 표 S2]
 #   DEC 은 **코드포인트를 정한 적이 없다** — 유니코드가 없던 시절의 문서라 글리프를 이름으로만 준다.
 #   xterm ctlseqs 에도 이 세트의 글리프 표는 없다(지정 시퀀스만 정의한다). 그래서 "이 그림이 어느
 #   유니코드 문자인가"는 규격이 답하지 않는다.
@@ -42,7 +42,7 @@ cols 80
 rows 24
 alt 0
 cursor 0 5
-modes 0 0 0 0 0 0 0 0 0 1 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+modes 0 0 0 0 0 0 0 0 0 0 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
 history 0
 visible 24
 # |BORDER-BOX|

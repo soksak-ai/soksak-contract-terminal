@@ -1,15 +1,28 @@
-# 근거 — ① 링 절단이 이스케이프 한가운데 떨어진다.
-#   미러는 링(1MB)이 자른 꼬리를 먹는다. 잘린 앞머리("\x1b[3" 의 뒤 3바이트부터)는 유효한
-#   시퀀스가 아니므로 파서가 삼켜 화면에 남기지 않는다(ECMA-48: 미완성 제어열은 무시). 그 뒤부터
-#   온 온전한 행들만 화면이 된다 — 그래서 이력에는 완성 행만 있고 마지막에 TAIL-END-MARK(SGR 31)가
-#   남는다.
+# 근거 — ① 스크롤백 창을 넘겨 흐르는 짙은 스트림.
+#
+# [이 픽스처가 채점하는 것]
+#   미러의 복원 창(1000행)보다 많은 행을 밀어 넣는다. 창을 넘긴 가장 오래된 행은 사라지고, 최근
+#   1000행과 화면이 남는다 — 그것이 계약이 복원을 약속하는 전부다. 마지막 완성 행(TAIL-END-MARK,
+#   SGR 31)까지 펜 상태가 정확히 살아 있어야 한다.
+#
+# [규격이 정하는 것]
+#   SGR 은 누적 상태다. ECMA-48 §8.3.117(SGR): "SGR is used to establish one or more graphic
+#   rendition aspects for subsequent text." — 즉 색은 문자에 붙어 오는 것이 아니라 **펜에 남는다**.
+#   그래서 각 행이 자기 색을 갖고, 행 사이에 SGR 0 이 오면 그 지점부터 기본 펜이다.
+#   줄 이동은 CR(0x0D)+LF(0x0A)다. ECMA-48 §8.3.14(CR)·§8.3.74(LF).
+#
+# [스트림의 바이트 정렬에 대하여 — 정직하게]
+#   이 스트림의 길이는 1 MiB 경계가 이스케이프 시퀀스 **한가운데** 떨어지도록 맞춰져 있다. 그
+#   정렬은 데몬 쪽 절단(원시 링·attach 재개)을 겨눈 것이고, **이 골든의 채점에는 쓰이지 않는다** —
+#   합격시험은 미러에 스트림 전체를 먹인다(SPEC.md §9). 여기서 잘리는 것은 이스케이프가 아니라
+#   스크롤백 창이다. 픽스처 이름이 약속하는 것보다 이 골든이 보는 것은 좁다.
 # soksak-contract-terminal — 선언된 화면 상태(골든).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
 rows 24
 alt 0
 cursor 0 23
-modes 0 0 0 0 0 0 0 0 0 1 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+modes 0 0 0 0 0 0 0 0 0 0 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
 history 999
 visible 24
 # |SEED-MARK|
