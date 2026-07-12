@@ -219,6 +219,14 @@ engine and compared it against Alacritty's own rendering of the raw stream. That
 error was masked by the re-rendering. The standard is now declared data, and no
 implementation sits above another.
 
+**Deleting the judge engine was not enough**, and it is worth being precise about why.
+An engine can set the standard without ever being called as a judge: it can simply be
+the place a value was read from. That is what happened to the state a mirror is born in
+(§11.I) and to the performance floor (§14) — no engine judged anything, and both numbers
+were still an engine's. **§11.A is the rule that closes the second door**: it says where
+a value may come from, and an engine is not on the list at any rung. Everything below —
+the canonical form, the goldens, the budgets — answers to it.
+
 **Licensing is per-unit.** Each engine unit carries the license and attribution of the
 engine it bundles. The contract imposes none, and no license crosses between units.
 This repo bundles no engine at all — it does not even depend on one.
