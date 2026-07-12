@@ -170,8 +170,8 @@ pub struct Report {
     pub live_bytes: usize,
     /// ④ 같은 조건에서의 프로세스 상주 메모리 증가분(바이트). 우회 메모리까지 본다.
     pub rss_bytes: usize,
-    /// **수요**(MB/s) — 이 기계에서 §6.2 의 tee 관이 미러 앞까지 배달할 수 있는 최대. 엔진과
-    /// 무관하게 같은 실행에서 직접 잰다([`crate::demand`]). feed 예산이 여기서 나온다.
+    /// **수요**(MB/s) — 분리 모드에서 **실 데몬**이 tee 로 배달하는 지속 속도. 엔진과 무관하게
+    /// 같은 실행에서 직접 잰다([`crate::daemon_demand`]). feed 예산이 곧 이 값이다.
     pub demand_mb_s: f64,
 }
 
@@ -350,7 +350,7 @@ pub fn demand_floor(reports: &[Report]) -> f64 {
 // 예산의 출처는 **요구**다(SPEC.md §14). 후보의 실측 분포에서 역산하지 않는다 — 그렇게 하면
 // 기준을 후보가 정하게 되고, 전 후보가 함께 느려질 때 아무도 못 잡는다. 어겼다면 약화시키지
 // 말고 원인을 찾아라(퇴행) 아니면 재보정하라(기계) — 재보정은 값을 낮추는 것이 아니라 요구를
-// 다시 재는 것이다(scripts/frontend-demand.sh).
+// 실 데몬으로 **다시 재는 것**이다([`crate::daemon_demand`]).
 
 /// feed 예산 = **수요 그 자체**. 판정은 `feed >= demand` 다. 계수는 없다.
 ///
