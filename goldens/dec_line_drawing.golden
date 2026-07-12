@@ -1,10 +1,41 @@
-# 근거 — ⑦ DEC Special Graphics.
-#   ESC ( 0 은 G0 을 DEC Special Graphics 로 지정한다. 활성 세트가 G0 이므로 인쇄 시점에 표대로
-#   번역된다: l→U+250C ┌, q→U+2500 ─, k→U+2510 ┐, x→U+2502 │, m→U+2514 └, j→U+2518 ┘.
-#   SO(0x0E)는 G1 을 활성으로 불러 들이고(G1 은 기본 ASCII) SI(0x0F)가 G0 으로 되돌린다 — 그래서
-#   테두리 안의 " inner  " 는 그대로 ASCII 이고, 'n' 이 U+253C ┼ 로 오염되지 않는다. ESC ( B 가
-#   G0 을 ASCII 로 되돌린 뒤의 "DONE" 도 그대로다.
-#   골든이 박스 글리프를 선언하는 근거는 어떤 엔진의 출력이 아니라 이 표다.
+# 근거 — ⑦ DEC Special Graphics(라인드로잉).
+#
+# [규격이 정하는 것 — 지정·호출]
+#   xterm ctlseqs, "ESC ( C — Designate G0 Character Set": "C = 0 ⇒ DEC Special Character and Line
+#   Drawing Set, VT100." 즉 ESC ( 0 이 G0 을 이 세트로 지정한다.
+#   SO(0x0E)/SI(0x0F)는 활성 세트를 G1/G0 으로 바꾼다(G1 은 이 스트림에서 ASCII 로 남는다) —
+#   그래서 테두리 안의 " inner  " 는 ASCII 로 그려지고, 'n' 이 라인드로잉으로 오염되지 않는다.
+#
+# [규격이 정하는 것 — 글리프]
+#   DEC VT100 User Guide(Programmer Information), Table 3-9 "Special Graphics Characters" 는 각
+#   ASCII 코드가 **어떤 그림**으로 바뀌는지를 **이름으로** 준다:
+#     l = upper-left corner    q = horizontal line     k = upper-right corner
+#     x = vertical bar         m = lower-left corner   j = lower-right corner
+#     n = crossing lines
+#   ("Codes 152₈-156₈, 161₈, and 164₈-170₈ are used to draw rectangular grids; each piece of this line
+#    drawing set is contiguous with others so that the lines formed are unbroken.")
+#
+# [규격이 정하지 않는 것 — 이 항목은 우리가 정한다: SPEC.md §11.S 침묵 표 S3]
+#   DEC 은 **코드포인트를 정한 적이 없다** — 유니코드가 없던 시절의 문서라 글리프를 이름으로만 준다.
+#   xterm ctlseqs 에도 이 세트의 글리프 표는 없다(지정 시퀀스만 정의한다). 그래서 "이 그림이 어느
+#   유니코드 문자인가"는 규격이 답하지 않는다.
+#
+#   우리 결정: **DEC 의 글리프 이름과 기하가 일치하는 유니코드 Box Drawing 문자로 옮긴다.**
+#   근거: The Unicode Standard 17.0, Box Drawing (Range 2500–257F)의 **문자 이름이 DEC 의 글리프
+#   이름과 같은 기하를 서술한다** — 대응은 유일하다.
+#     l upper-left corner  → U+250C BOX DRAWINGS LIGHT DOWN AND RIGHT   (아래·오른쪽으로 열린 모서리)
+#     q horizontal line    → U+2500 BOX DRAWINGS LIGHT HORIZONTAL
+#     k upper-right corner → U+2510 BOX DRAWINGS LIGHT DOWN AND LEFT
+#     x vertical bar       → U+2502 BOX DRAWINGS LIGHT VERTICAL
+#     m lower-left corner  → U+2514 BOX DRAWINGS LIGHT UP AND RIGHT
+#     j lower-right corner → U+2518 BOX DRAWINGS LIGHT UP AND LEFT
+#     n crossing lines     → U+253C BOX DRAWINGS LIGHT VERTICAL AND HORIZONTAL
+#   (Light 계열을 고른 것도 결정이다: DEC 의 세트는 굵기를 구분하지 않고 단일 굵기의 격자를 그린다 —
+#    Heavy/Double 계열은 DEC 이 구분하지 않은 것을 새로 만들어 내는 셈이다.)
+#
+# [따라서 골든이 선언하는 것]
+#   ESC ( 0 이후의 lqk / x / mqj 는 위 표대로 번역된 글리프로 그리드에 앉는다. SO 로 들어간 구간은
+#   ASCII 그대로다. ESC ( B 로 G0 을 ASCII 로 되돌린 뒤의 "DONE" 도 그대로다.
 # soksak-contract-terminal — 선언된 화면 상태(골든).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
