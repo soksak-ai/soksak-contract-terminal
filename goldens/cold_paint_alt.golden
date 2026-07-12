@@ -1,12 +1,20 @@
-# 근거 — ⑥ cold 이전의 라이브 화면(alt 활성).
-#   ③과 같은 근거. cold 페인트가 담아야 할 원본이 무엇인지 여기서 고정한다.
+# 근거 — ⑥ cold 체크포인트 **이전**의 라이브 화면(alt 활성).
+#
+# [규격이 정하는 것]
+#   ③과 같다. xterm ctlseqs, DECSET Ps = 1 0 4 9: "Save cursor as in DECSC, xterm. After saving
+#   the cursor, switch to the Alternate Screen Buffer, clearing it first." → 대체 화면 활성(alt 1),
+#   스크롤백 없음(history 0). 프레임은 CSI Ps ; Ps H (Cursor Position, "default = [1,1]")로 찍는다.
+#
+# [이 골든의 자리]
+#   cold 페인트가 담아야 할 **원본**이 무엇인지 여기서 고정한다. 다음 국면(.cold)이 그 원본을
+#   평면 텍스트로 어떻게 담는지를 규정한다.
 # soksak-contract-terminal — 선언된 화면 상태(골든).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
 rows 24
 alt 1
 cursor 11 9
-modes 0 0 0 0 0 0 0 0 0 1 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+modes 0 0 0 0 0 0 0 0 0 0 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
 history 0
 visible 24
 # |TUI-LINE-1|

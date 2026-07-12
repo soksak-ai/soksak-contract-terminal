@@ -17,6 +17,9 @@ name = "soksak_contract_terminal"
 path = "src/lib.rs"
 
 [dependencies]
+# 엔진은 없다. libc 는 엔진이 아니라 커널이다 — 예산의 근거인 수요(실 PTY 처리량 천장,
+# src/demand.rs)를 재려면 진짜 PTY 가 필요하고, forkpty 는 OS 가 그것을 여는 유일한 문이다.
+libc = "0.2"
 
 # Independent workspace — it sits beside the units, not inside one.
 [workspace]

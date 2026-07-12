@@ -1,15 +1,33 @@
-# 근거 — ⑥ cold 이전의 라이브 화면(alt 활성).
-#   ③과 같은 근거. cold 페인트가 담아야 할 원본이 무엇인지 여기서 고정한다.
-# 국면 — cold 체크포인트. 죽은 세션의 잔상은 정직해야 한다: 프로세스 없는 alt-screen 을 만들지
-#   않는다(alt 0). alt 프레임(TUI-LINE-*)과 그 뒤 얼려 둔 프라임 스크롤백(SCROLL-*)이 평면 텍스트로
-#   이어 붙는다 — 봉인이 담는 화면이 이것이다.
+# 근거 — ⑥ cold 체크포인트 **이전**의 라이브 화면(alt 활성).
+#
+# [규격이 정하는 것]
+#   ③과 같다. xterm ctlseqs, DECSET Ps = 1 0 4 9: "Save cursor as in DECSC, xterm. After saving
+#   the cursor, switch to the Alternate Screen Buffer, clearing it first." → 대체 화면 활성(alt 1),
+#   스크롤백 없음(history 0). 프레임은 CSI Ps ; Ps H (Cursor Position, "default = [1,1]")로 찍는다.
+#
+# [이 골든의 자리]
+#   cold 페인트가 담아야 할 **원본**이 무엇인지 여기서 고정한다. 다음 국면(.cold)이 그 원본을
+#   평면 텍스트로 어떻게 담는지를 규정한다.
+#
+# 국면 — cold 체크포인트(죽은 세션).
+#
+# [규격이 정하지 않는 것 — 이 항목은 우리가 정한다: SPEC.md §11.S]
+#   "프로세스가 죽은 뒤의 화면"이라는 것은 터미널 규격에 없는 개념이다. 규격의 터미널은 항상 살아
+#   있고, alt-screen 은 살아 있는 응용이 붙들고 있는 화면이다. 그래서 침묵한다.
+#
+#   우리 결정: **죽은 세션의 잔상은 alt-screen 을 흉내 내지 않는다(alt 0).**
+#   근거: alt-screen 은 "이 화면을 소유한 응용이 있고, 나가면 밑의 화면이 돌아온다"는 약속이다
+#   (위 1049 인용의 대칭인 DECRST 1049: "Use Normal Screen Buffer and restore cursor"). 그 응용이
+#   없는데 alt 를 켜 두면, 되돌아갈 화면이 있다는 거짓말을 켜 두는 것이다. 그래서 alt 프레임
+#   (TUI-LINE-*)과 그 아래 얼려 둔 프라임 스크롤백(SCROLL-*)을 **평면 텍스트로 이어 붙인다** —
+#   봉인이 담는 화면이 이것이고, 이력은 정직하게 이력으로 남는다.
 # soksak-contract-terminal — 선언된 화면 상태(골든).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
 rows 24
 alt 0
 cursor 0 23
-modes 0 0 0 0 0 0 0 0 0 1 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
+modes 0 0 0 0 0 0 0 0 0 0 1 1 0   # bracketed_paste app_cursor app_keypad mouse_click mouse_drag mouse_motion sgr_mouse utf8_mouse focus_in_out alternate_scroll show_cursor line_wrap insert
 history 18
 visible 24
 # |SCROLL-1|
