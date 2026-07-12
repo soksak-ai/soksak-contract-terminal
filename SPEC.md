@@ -393,3 +393,52 @@ window the moment pruning fires — the mirror kept 588 rows where the corpus de
 
 **avt, shpool_vt100 — rejected on the record.** Neither maintains the scrollback and
 private-mode state the contract restores, so neither reaches the fixtures.
+
+## 14. Performance — a floor, not a ranking
+
+A terminal's real output arrives at a few megabytes per second at its very loudest. The
+slowest engine unit measured here consumes the corpus at seventy, and the fastest at a
+hundred and sixty-six. Every unit therefore has more than an order of magnitude of headroom,
+and the gap between them disappears entirely into it.
+
+So this section does not pick a winner. **These budgets are a floor** — they exist to catch a
+regression of an order of magnitude, not to rank implementations whose differences do not
+reach the user. Reading the table as a leaderboard would be reading it wrong.
+
+**Which unit is the default, and why it is not the fastest.** The default is
+`soksak-sidecar-terminal-alacritty`, and the reason is supply chain, not speed. Its engine is
+a published, first-party crate. The vt100 and wezterm units each run on a local fork that
+closes a defect this suite found, and ghostty runs on a pinned commit of a library whose API
+its own authors declare unstable. The performance difference between them is invisible at the
+rates a terminal actually produces; the difference in what we depend on is not. That is the
+axis that discriminates, so that is the axis that decides.
+
+### 14.1 The corpus and the method
+
+One corpus, one trait, every unit — numbers only compare if everyone eats the same thing. The
+corpus is the seven fixture streams followed by a full-screen truecolour TUI redraw (the
+pattern that hits a mirror hardest in real use), and a separate scrollback fill that pushes
+more rows than the restore window holds. Sizes are reported by the suite itself rather than
+by this document, so they cannot drift from it.
+
+Five repeats, median, release build, one unit at a time on an otherwise idle machine.
+
+**Memory is two numbers, and the second one is the point.** `heap` counts what passes through
+the process allocator: exact, but blind to anything that does not. `rss` is the resident
+growth: coarse, but it sees everything. One engine maps its grid pages directly, so its heap
+reads as zero — a single number would have concluded it uses no memory at all. The memory axis
+is also measured **first**: run it after the others and the allocator reuses what they warmed,
+and resident growth reports zero for everyone.
+
+### 14.2 Budgets
+
+| axis | budget | what it guards |
+| --- | --- | --- |
+| feed throughput | **≥ 50 MB/s** *and* **≥ ¼ of the fastest unit in the same run** | Both must hold. The absolute floor alone gives false failures on a slow CI machine; the relative guard alone cannot see every unit regressing together. |
+| rehydrate | **≤ 5 ms**, paint **≤ 2 MB** | This axis measures the **serializer, not the engine** — every unit produces the same paint from the same screen. It is a guard against the serializer regressing. |
+| cold paint | **≤ 5 ms**, sealed **≤ 2 MB** | As above. |
+| memory | **rss ≤ 32 MB** | `heap` is an observation, **not a gate**: zero is a legitimate value for an engine that maps its own pages. |
+
+The absolute numbers are calibrated against a current desktop CPU. They are not the
+requirement; the requirement is that no unit regresses by an order of magnitude, and these are
+what that means today. Recalibrate them rather than weaken them.
