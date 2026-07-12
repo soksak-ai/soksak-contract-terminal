@@ -81,8 +81,8 @@ or if the reasoning cites nothing at all).
 | --- | --- | --- |
 | `soksak-sidecar-terminal-vt100` | 7 / 7 (on the fork that adds DEC Special Graphics) | ok |
 | `soksak-sidecar-terminal-alacritty` | 7 / 7 | ok |
-| `soksak-sidecar-terminal-ghostty` | 7 / 7 | ok (close to the line) |
-| `soksak-sidecar-terminal-wezterm` | 7 / 7 (on the fork that makes a wide character obey DECAWM at the margin) | **under** |
+| `soksak-sidecar-terminal-wezterm` | 7 / 7 (on the fork that makes a wide character obey DECAWM at the margin) | ok |
+| `soksak-sidecar-terminal-ghostty` | 7 / 7 | ok (closest to the line) |
 
 Both of the engines standing on a fork are there because this suite found a real defect in
 them, and both defects were closed at their owner rather than papered over in the unit. The
@@ -92,10 +92,12 @@ a restore paint that turned alternate scroll **off** in the user's terminal for 
 that had never mentioned it — because the contract's idea of a fresh terminal had been read off
 an engine. SPEC.md §13 has them all, with the reasoning.
 
-One unit is below the performance floor (SPEC.md §14.3), and it was not inferred — it was
-reproduced: held at its own feed rate, a tee subscriber lost 4.6 MB of a 67 MB flood. With the
-app closed and a session dumping output, that mirror is missing part of the scrollback it exists
-to restore. The standard does not move for it.
+All four clear the performance floor today — but one of them did not, and how that was settled is
+the point. The wezterm mirror fed at 68 MB/s against a demand of ~85, and held at its own rate
+against a real daemon it **lost 16.5 MB of a 67 MB flood**: with the app closed and a session
+dumping output, a quarter of the screen it exists to restore never reached it. Under the old floor
+(50 MB/s, read off the candidates) it had passed comfortably. The floor was not lowered; the mirror
+was made faster (68 → 102 MB/s), and it now drops nothing. SPEC.md §14.3.
 
 ## The gate
 
