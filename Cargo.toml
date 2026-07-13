@@ -1,4 +1,4 @@
-# soksak-contract-terminal — the contract soksak-sidecar-terminal-spec@1 and its acceptance suite.
+# soksak-contract-terminal — the contract soksak-spec-sidecar-terminal and its acceptance suite.
 #
 # Nothing here runs and nothing here ships: no binary, no dist, no registry entry. Engine units
 # consume it as a dev-dependency, and that is the only way it is consumed.
@@ -10,7 +10,7 @@ name = "soksak-contract-terminal"
 version = "0.0.1"
 edition = "2021"
 publish = false
-description = "The soksak-sidecar-terminal-spec@1 contract: the canonical screen state, the declared goldens, the corpus, and the acceptance assertions every engine unit is graded by."
+description = "The soksak-spec-sidecar-terminal contract: the canonical screen state, the declared goldens, the corpus, and the acceptance assertions every engine unit is graded by."
 
 [lib]
 name = "soksak_contract_terminal"

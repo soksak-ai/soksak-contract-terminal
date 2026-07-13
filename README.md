@@ -6,7 +6,7 @@ user's machine. Engine units consume it as a **dev-dependency**, and that is the
 way it is consumed.
 
 The repo name is `soksak-contract-terminal`; the contract id is
-`soksak-sidecar-terminal-spec@1`. They differ on purpose — the id is a string value
+`soksak-spec-sidecar-terminal`. They differ on purpose — the id is a string value
 naming the contract a *sidecar unit* implements, and manifests and code keep using it
 unchanged. The repo name says what this repo is: a contract, not a sidecar.
 

@@ -1,6 +1,6 @@
 # soksak-contract-terminal — the terminal sidecar contract
 
-Contract id: **`soksak-sidecar-terminal-spec@1`**.
+Contract id: **`soksak-spec-sidecar-terminal`**.
 
 Normative wire between a terminal-domain sidecar and the terminal plugins that
 consume it, and between that sidecar and the core PTY daemon (`soksak-ptyd`) it
@@ -13,7 +13,7 @@ contract, the corpus, the declared goldens, and the acceptance assertions live h
 in a repo that implements nothing and ships nothing.
 
 **Repo name vs contract id.** The repo is `soksak-contract-terminal`; the contract id
-is `soksak-sidecar-terminal-spec@1`. They differ on purpose. The id is a string value
+is `soksak-spec-sidecar-terminal`. They differ on purpose. The id is a string value
 that names *the contract a sidecar unit implements* — manifests and code keep using
 it unchanged. The repo name says what this repo *is*: a contract, not a sidecar. It
 has no binary, no `dist`, no registry entry, and nothing is installed on a user's
@@ -261,12 +261,12 @@ consumer couples to a specific engine. M3 wires both `soksak-plugin-terminal`
 ```json
 "sidecars": [
   { "name": "terminal-alacritty",
-    "interface": "soksak-sidecar-terminal-spec@1" }
+    "interface": "soksak-spec-sidecar-terminal" }
 ]
 ```
 
 **The plugin manifest selects the unit, and there is no default.** `interface` pins the
-contract (`soksak-sidecar-terminal-spec@1`); `name` picks which conforming engine unit
+contract (`soksak-spec-sidecar-terminal`); `name` picks which conforming engine unit
 implements it. A plugin that names no unit is an error, not a plugin that gets one chosen
 for it — an implicit default is a ranking wearing a shrug, and the moment one exists every
 other unit is a deviation from it. Every unit that clears the gate is an equal choice; the
