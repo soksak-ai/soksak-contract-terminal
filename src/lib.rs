@@ -1,8 +1,8 @@
-//! soksak-contract-terminal — 계약 `soksak-sidecar-terminal-spec@1` 과 그 합격시험.
+//! soksak-contract-terminal — 계약 `soksak-spec-sidecar-terminal` 과 그 합격시험.
 //!
 //! **실행되는 것이 없다.** 배포물 0(dist·바이너리·레지스트리 등재 없음). 소비는 오직 빌드·테스트
 //! 타임 dev-dependency 다. 이름의 `terminal` 은 이 계약이 규율하는 도메인이고, 계약 식별자 자체는
-//! `soksak-sidecar-terminal-spec@1` 로 불변이다(문자열 값이지 배포 단위 이름이 아니다).
+//! `soksak-spec-sidecar-terminal` 로 불변이다(문자열 값이지 배포 단위 이름이 아니다).
 //!
 //! **엔진이 없다.** 이 크레이트는 어떤 VT 엔진에도 의존하지 않는다. 정답은 엔진이 하는 짓이
 //! 아니라 [`goldens`](../goldens) 에 **선언된 화면 상태**다 — 그래서 어느 구현체도 1급이 아니고,
