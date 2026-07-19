@@ -122,6 +122,58 @@ pub fn assert_conforms<M: MirrorUnderTest>(fixture: Fixture) {
     }
 }
 
+/// resize→rehydrate **폭 정합** — 모든 엔진이 통과해야 하는 공유 단언(개별 엔진에 복붙하지 않는다).
+///
+/// 배경: warm 재부착 화면은 미러 그리드를 SGR 런으로 합성한 것이고, tee 는 크기를 안 나르며 코어
+/// resize 는 데몬 PTY 만 바꿔 미러엔 전파하지 않는다. 그래서 소비자(kit)는 rehydrate 직전(그리고
+/// 리사이즈마다) 계약 `resize` op 로 미러를 pane 폭에 맞춘다. 이 단언은 그 전제 — "미러를 다른 폭으로
+/// resize 한 뒤 rehydrate 하면, 그 재생 페인트를 신선한 **같은 폭** 미러에 먹인 화면이 resize 된 원본과
+/// 정규형으로 같고(왕복 충실), 논리 내용이 보존된다" — 를 엔진 불가지로 못박는다. 깨지면 좁아진 pane 의
+/// warm 복원이 격자를 깬다(실측). 골든 불요: 재생 화면을 resize 된 원본과 자기대조하고, 내용 보존은
+/// 입력 줄이 재감김 결과에 온전히 남는지로 확인한다(reflow 가 손실·뒤섞음이 아님).
+pub fn assert_resize_reflow<M: MirrorUnderTest>() {
+    // COLS(80) 한 행을 넘는 논리 줄(120자) — 재감김이 일어나야 검사가 의미 있다. 공백 없는 패턴이라
+    // 꼬리 공백 제거가 내용을 지우지 않는다.
+    let width = COLS as usize + COLS as usize / 2;
+    let text: Vec<u8> = (0..width).map(|i| b'a' + (i % 26) as u8).collect();
+    let original = String::from_utf8(text.clone()).unwrap();
+    let mut stream = text;
+    stream.extend_from_slice(b"\r\n");
+
+    // 축소·항등·확대 세 방향 모두 폭에 정확해야 한다.
+    for &target in &[COLS / 2, COLS, COLS * 2] {
+        let cols = target.max(2);
+        let mut m = M::new(COLS, ROWS);
+        m.feed(&stream);
+        m.resize(cols, ROWS);
+
+        // ① 왕복 충실 — 재생 페인트를 신선한 같은 폭 미러에 먹이면 resize 된 원본과 정규형이 같다.
+        let paint = m.rehydrate();
+        let mut fresh = M::new(cols, ROWS);
+        fresh.feed(&paint);
+        let (want, got) = (m.screen_state(), fresh.screen_state());
+        assert_eq!(
+            want, got,
+            "resize→{cols}폭 후 rehydrate 재도색이 resize 된 원본과 어긋남(왕복 충실 실패)"
+        );
+        assert_eq!(got.cols, cols, "resize→{cols}폭: 재생 화면 폭이 목표와 다름");
+
+        // ② 내용 보존 — resize 는 재감김일 뿐 손실이 아니다. 스크롤백+화면 행 텍스트를 이으면(꼬리
+        // 공백 제거) 원본 줄이 그 안에 온전히 남는다.
+        let joined: String = got
+            .history
+            .iter()
+            .chain(got.visible.iter())
+            .map(|r| r.text().trim_end().to_string())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            joined.contains(&original),
+            "resize→{cols}폭 후 내용 보존 실패: 원본이 재감김 결과 {joined:?} 에 온전히 없음"
+        );
+    }
+}
+
 fn mirror_cold<M: MirrorUnderTest>(stream: &[u8]) -> Vec<u8> {
     let mut m = M::new(COLS, ROWS);
     m.feed(stream);
