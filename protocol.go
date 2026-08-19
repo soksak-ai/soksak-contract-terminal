@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 )
 
 const ProtocolVersion uint32 = 1
 const HandoffContract uint32 = 2
+
+var unitName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 func DaemonBinaryPath(home string) string {
 	return filepath.Join(home, "bin", fmt.Sprintf("soksak-ptyd-p%d", ProtocolVersion))
@@ -27,6 +30,14 @@ func TokenPath(home string) string {
 
 func ServiceSocketPath(home string) string {
 	return filepath.Join(home, "run", fmt.Sprintf("soksak-sidecar-terminal-p%d.sock", ProtocolVersion))
+}
+
+func SidecarBinaryPath(home, name string) (string, error) {
+	if !unitName.MatchString(name) {
+		return "", fmt.Errorf("invalid sidecar unit name %q", name)
+	}
+	unit := "soksak-sidecar-" + name
+	return filepath.Join(home, "sidecars", unit, "dist", unit), nil
 }
 
 type Hello struct {

@@ -22,6 +22,20 @@ func TestProtocolPathsAreVersionedUnderTheDeclaredHome(t *testing.T) {
 	}
 }
 
+func TestSidecarBinaryPathRejectsAPathInsteadOfTreatingItAsAUnitName(t *testing.T) {
+	path, err := SidecarBinaryPath("/installation", "terminal-alacritty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join("/installation", "sidecars", "soksak-sidecar-terminal-alacritty", "dist", "soksak-sidecar-terminal-alacritty")
+	if path != want {
+		t.Fatalf("sidecar path = %q, want %q", path, want)
+	}
+	if _, err := SidecarBinaryPath("/installation", "../terminal"); err == nil {
+		t.Fatal("path traversal was accepted as a sidecar unit name")
+	}
+}
+
 func TestCreateOrAttachWireUsesTheRustContractFieldNames(t *testing.T) {
 	request := CreateOrAttachRequest{
 		Op:          "createOrAttach",
