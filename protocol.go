@@ -7,6 +7,7 @@ import (
 )
 
 const ProtocolVersion uint32 = 1
+const HandoffContract uint32 = 2
 
 func DaemonBinaryPath(home string) string {
 	return filepath.Join(home, "bin", fmt.Sprintf("soksak-ptyd-p%d", ProtocolVersion))
