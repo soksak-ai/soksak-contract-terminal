@@ -53,3 +53,10 @@ func TestHelloCarriesTheCurrentProtocolAndClientIdentity(t *testing.T) {
 		t.Fatalf("hello = %#v", hello)
 	}
 }
+
+func TestReplyCanValidateSuccessWithoutDecodingData(t *testing.T) {
+	reply := Reply{OK: true, Code: "OK", Data: json.RawMessage(`{"pid":1}`)}
+	if err := reply.DecodeData(nil); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -60,6 +60,10 @@ type SessionRequest struct {
 	Session uint64 `json:"session"`
 }
 
+type OperationRequest struct {
+	Op string `json:"op"`
+}
+
 type WriteRequest struct {
 	Op         string `json:"op"`
 	Session    uint64 `json:"session"`
@@ -109,6 +113,9 @@ func (reply Reply) DecodeData(target any) error {
 		return fmt.Errorf("%s: %s", reply.Code, reply.Message)
 	}
 	if len(reply.Data) == 0 || string(reply.Data) == "null" {
+		return nil
+	}
+	if target == nil {
 		return nil
 	}
 	return json.Unmarshal(reply.Data, target)
