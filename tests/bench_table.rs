@@ -27,17 +27,19 @@ fn bench_table() {
         "terminal fleet needs six .bench.json reports in {}",
         dir.display()
     );
-    let units: std::collections::BTreeSet<_> =
-        reports.iter().map(|report| report.unit.as_str()).collect();
+    let sidecars: std::collections::BTreeSet<_> = reports
+        .iter()
+        .map(|report| report.sidecar.as_str())
+        .collect();
     let expected = std::collections::BTreeSet::from([
-        "alacritty",
-        "ghostty",
-        "kitty",
-        "shitty",
-        "vt100",
-        "wezterm",
+        "soksak-sidecar-terminal-alacritty",
+        "soksak-sidecar-terminal-ghostty",
+        "soksak-sidecar-terminal-kitty",
+        "soksak-sidecar-terminal-shitty",
+        "soksak-sidecar-terminal-vt100",
+        "soksak-sidecar-terminal-wezterm",
     ]);
-    assert_eq!(units, expected, "terminal performance fleet is incomplete");
-    reports.sort_by(|a, b| a.unit.cmp(&b.unit));
+    assert_eq!(sidecars, expected, "terminal performance sidecars are incomplete");
+    reports.sort_by(|a, b| a.sidecar.cmp(&b.sidecar));
     println!("\n{}", table(&reports));
 }

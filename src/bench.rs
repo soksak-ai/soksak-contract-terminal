@@ -161,7 +161,7 @@ pub fn corpus_shape() -> String {
 /// 한 유닛의 측정 결과.
 #[derive(Debug, Clone)]
 pub struct Report {
-    pub unit: String,
+    pub sidecar: String,
     /// ① feed 처리량(MB/s, 중앙값).
     pub feed_mb_s: f64,
     /// ② rehydrate 지연(ms, 중앙값)과 페인트 크기(바이트).
@@ -194,7 +194,7 @@ fn median(mut v: Vec<f64>) -> f64 {
 const REPEATS: usize = 5;
 
 /// 네 축을 잰다. 같은 머신·같은 빌드(release)·다른 부하 없는 상태를 전제한다.
-pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
+pub fn run<M: MirrorUnderTest>(sidecar: &str) -> Report {
     // ④ 메모리 — **가장 먼저** 잰다. 뒤에 재면 앞 단계가 데워 놓은 힙을 할당자가 재사용해 RSS 가
     // 늘지 않고, 그러면 "메모리를 안 쓰는 엔진"이라는 거짓 숫자가 나온다(실측으로 확인했다).
     let fill = scrollback_fill();
@@ -266,7 +266,7 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
     let loss = crate::daemon_demand::measure(&bin, false, Some(median(feed.clone())));
 
     Report {
-        unit: unit.to_string(),
+        sidecar: sidecar.to_string(),
         feed_mb_s: median(feed),
         rehydrate_ms: median(rehydrate),
         paint_bytes,
@@ -286,7 +286,7 @@ impl Report {
     pub fn to_json(&self) -> String {
         serde_json::json!({
             "spec": BENCHMARK_REPORT_SPEC,
-            "unit": self.unit,
+            "sidecar": self.sidecar,
             "feedMbS": self.feed_mb_s,
             "rehydrateMs": self.rehydrate_ms,
             "paintBytes": self.paint_bytes,
@@ -304,7 +304,7 @@ impl Report {
         let value: serde_json::Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
         let object = value.as_object().ok_or("benchmark report must be an object")?;
         let expected = [
-            "spec", "unit", "feedMbS", "rehydrateMs", "paintBytes", "coldMs",
+            "spec", "sidecar", "feedMbS", "rehydrateMs", "paintBytes", "coldMs",
             "coldBytes", "liveBytes", "rssBytes", "demandMbS", "gapBytes", "tailSeen",
         ];
         if object.len() != expected.len() || expected.iter().any(|field| !object.contains_key(*field)) {
@@ -319,7 +319,7 @@ impl Report {
             return Err("benchmark report spec must be soksak-spec-terminal-benchmark@0.0.1".into());
         }
         Ok(Report {
-            unit: text("unit")?.to_string(),
+            sidecar: text("sidecar")?.to_string(),
             feed_mb_s: num("feedMbS")?,
             rehydrate_ms: num("rehydrateMs")?,
             paint_bytes: count("paintBytes")?,
@@ -348,7 +348,7 @@ pub fn table(reports: &[Report]) -> String {
     ));
     out.push_str(&format!(
         "{:<12} {:>11} {:>7} {:>11} {:>6} {:>9} {:>9} {:>9} {:>8}\n",
-        "unit",
+        "sidecar",
         "feed MB/s",
         "vs dmd",
         "lost (MB)",
@@ -364,7 +364,7 @@ pub fn table(reports: &[Report]) -> String {
     for r in reports {
         out.push_str(&format!(
             "{:<12} {:>11.1} {:>7} {:>11.1} {:>6} {:>9.2} {:>9.2} {:>9.1} {:>8.1}\n",
-            r.unit,
+            r.sidecar,
             r.feed_mb_s,
             if r.feed_mb_s >= floor { "ok" } else { "UNDER" },
             r.gap_bytes as f64 / 1e6,
@@ -420,7 +420,7 @@ pub const BUDGET_RSS_BYTES: usize = 32 * 1024 * 1024;
 
 /// 한 유닛의 예산. 어기면 패닉한다 — 벤치가 곧 게이트다.
 pub fn assert_within_budget(r: &Report) {
-    let u = &r.unit;
+    let sidecar = &r.sidecar;
 
     // ── 판정의 본체: **관찰된 손실**. 비율 비교가 아니다.
     //
@@ -430,7 +430,7 @@ pub fn assert_within_budget(r: &Report) {
     assert_eq!(
         r.gap_bytes,
         0,
-        "{u}: 이 미러의 속도({:.1} MB/s)로는 데몬의 tee 를 따라가지 못한다 — 앱이 닫힌 채 세션이 \
+        "{sidecar}: 이 미러의 속도({:.1} MB/s)로는 데몬의 tee 를 따라가지 못한다 — 앱이 닫힌 채 세션이 \
          폭주하는 동안 데몬이 **{:.1} MB 를 떨궜다**. 복원 화면에 그만큼의 구멍이 남는다. \
          추론이 아니라 이 실행에서 실 데몬으로 관찰한 손실이다.",
         r.feed_mb_s,
@@ -438,7 +438,7 @@ pub fn assert_within_budget(r: &Report) {
     );
     assert!(
         r.tail_seen,
-        "{u}: 홍수가 끝난 뒤 셸이 찍은 마지막 줄이 이 속도의 구독자에게 **닿지 못했다** — 복원 \
+        "{sidecar}: 홍수가 끝난 뒤 셸이 찍은 마지막 줄이 이 속도의 구독자에게 **닿지 못했다** — 복원 \
          화면이 통째로 낡은 것이 된다(마지막 화면을 못 받았다).",
     );
 
@@ -447,33 +447,33 @@ pub fn assert_within_budget(r: &Report) {
     let floor = r.demand_mb_s * BUDGET_FEED_OF_DEMAND;
     assert!(
         r.feed_mb_s >= floor,
-        "{u}: feed {:.1} MB/s < 수요 {:.1} MB/s — 이 미러는 데몬이 tee 로 배달하는 속도보다 느리다.",
+        "{sidecar}: feed {:.1} MB/s < 수요 {:.1} MB/s — 이 미러는 데몬이 tee 로 배달하는 속도보다 느리다.",
         r.feed_mb_s,
         r.demand_mb_s
     );
     assert!(
         r.rehydrate_ms <= BUDGET_PAINT_MS,
-        "{u}: rehydrate {:.2} ms > 예산 {BUDGET_PAINT_MS} ms (직렬화기 퇴행)",
+        "{sidecar}: rehydrate {:.2} ms > 예산 {BUDGET_PAINT_MS} ms (직렬화기 퇴행)",
         r.rehydrate_ms
     );
     assert!(
         r.paint_bytes <= BUDGET_PAINT_BYTES,
-        "{u}: 페인트 {} B > 예산 {BUDGET_PAINT_BYTES} B",
+        "{sidecar}: 페인트 {} B > 예산 {BUDGET_PAINT_BYTES} B",
         r.paint_bytes
     );
     assert!(
         r.cold_ms <= BUDGET_PAINT_MS,
-        "{u}: cold {:.2} ms > 예산 {BUDGET_PAINT_MS} ms (직렬화기 퇴행)",
+        "{sidecar}: cold {:.2} ms > 예산 {BUDGET_PAINT_MS} ms (직렬화기 퇴행)",
         r.cold_ms
     );
     assert!(
         r.cold_bytes <= BUDGET_PAINT_BYTES,
-        "{u}: 봉인 {} B > 예산 {BUDGET_PAINT_BYTES} B",
+        "{sidecar}: 봉인 {} B > 예산 {BUDGET_PAINT_BYTES} B",
         r.cold_bytes
     );
     assert!(
         r.rss_bytes <= BUDGET_RSS_BYTES,
-        "{u}: rss {} B > 예산 {BUDGET_RSS_BYTES} B",
+        "{sidecar}: rss {} B > 예산 {BUDGET_RSS_BYTES} B",
         r.rss_bytes
     );
 }
