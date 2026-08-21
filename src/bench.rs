@@ -27,6 +27,8 @@ use std::time::Instant;
 use crate::corpus::{Fixture, COLS, ROWS};
 use crate::MirrorUnderTest;
 
+pub const BENCHMARK_REPORT_SPEC: &str = "soksak-spec-terminal-benchmark@0.0.1";
+
 // ── ④ 측정 도구 — 순 할당 바이트를 세는 global allocator ──────────────────────
 
 static ALLOCATED: AtomicUsize = AtomicUsize::new(0);
@@ -278,45 +280,56 @@ pub fn run<M: MirrorUnderTest>(unit: &str) -> Report {
     }
 }
 
-// ── 보고 — 한 줄 직렬화(유닛이 쓰고, 표가 읽는다) + 표 ─────────────────────────
+// ── 보고 — versioned JSON(유닛이 쓰고, 표가 읽는다) + 표 ───────────────────────
 
 impl Report {
-    pub fn to_line(&self) -> String {
-        format!(
-            "{} {} {} {} {} {} {} {} {} {} {}",
-            self.unit,
-            self.feed_mb_s,
-            self.rehydrate_ms,
-            self.paint_bytes,
-            self.cold_ms,
-            self.cold_bytes,
-            self.live_bytes,
-            self.rss_bytes,
-            self.demand_mb_s,
-            self.gap_bytes,
-            self.tail_seen
-        )
+    pub fn to_json(&self) -> String {
+        serde_json::json!({
+            "spec": BENCHMARK_REPORT_SPEC,
+            "unit": self.unit,
+            "feedMbS": self.feed_mb_s,
+            "rehydrateMs": self.rehydrate_ms,
+            "paintBytes": self.paint_bytes,
+            "coldMs": self.cold_ms,
+            "coldBytes": self.cold_bytes,
+            "liveBytes": self.live_bytes,
+            "rssBytes": self.rss_bytes,
+            "demandMbS": self.demand_mb_s,
+            "gapBytes": self.gap_bytes,
+            "tailSeen": self.tail_seen,
+        }).to_string()
     }
 
-    pub fn from_line(s: &str) -> Result<Report, String> {
-        let f: Vec<&str> = s.split_whitespace().collect();
-        if f.len() != 11 {
-            return Err(format!("bench line has {} fields, want 11", f.len()));
+    pub fn from_json(source: &str) -> Result<Report, String> {
+        let value: serde_json::Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
+        let object = value.as_object().ok_or("benchmark report must be an object")?;
+        let expected = [
+            "spec", "unit", "feedMbS", "rehydrateMs", "paintBytes", "coldMs",
+            "coldBytes", "liveBytes", "rssBytes", "demandMbS", "gapBytes", "tailSeen",
+        ];
+        if object.len() != expected.len() || expected.iter().any(|field| !object.contains_key(*field)) {
+            return Err("benchmark report fields do not match 0.0.1".into());
         }
-        let num = |i: usize| f[i].parse::<f64>().map_err(|e| e.to_string());
-        let cnt = |i: usize| f[i].parse::<usize>().map_err(|e| e.to_string());
+        let text = |field: &str| object[field].as_str().ok_or_else(|| format!("{field} must be a string"));
+        let num = |field: &str| object[field].as_f64().ok_or_else(|| format!("{field} must be a number"));
+        let count = |field: &str| object[field].as_u64()
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| format!("{field} must be a non-negative integer"));
+        if text("spec")? != BENCHMARK_REPORT_SPEC {
+            return Err("benchmark report spec must be soksak-spec-terminal-benchmark@0.0.1".into());
+        }
         Ok(Report {
-            unit: f[0].to_string(),
-            feed_mb_s: num(1)?,
-            rehydrate_ms: num(2)?,
-            paint_bytes: cnt(3)?,
-            cold_ms: num(4)?,
-            cold_bytes: cnt(5)?,
-            live_bytes: cnt(6)?,
-            rss_bytes: cnt(7)?,
-            demand_mb_s: num(8)?,
-            gap_bytes: cnt(9)? as u64,
-            tail_seen: f[10] == "true",
+            unit: text("unit")?.to_string(),
+            feed_mb_s: num("feedMbS")?,
+            rehydrate_ms: num("rehydrateMs")?,
+            paint_bytes: count("paintBytes")?,
+            cold_ms: num("coldMs")?,
+            cold_bytes: count("coldBytes")?,
+            live_bytes: count("liveBytes")?,
+            rss_bytes: count("rssBytes")?,
+            demand_mb_s: num("demandMbS")?,
+            gap_bytes: object["gapBytes"].as_u64().ok_or("gapBytes must be a non-negative integer")?,
+            tail_seen: object["tailSeen"].as_bool().ok_or("tailSeen must be a boolean")?,
         })
     }
 }

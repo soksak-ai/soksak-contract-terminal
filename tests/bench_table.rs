@@ -15,16 +15,16 @@ fn bench_table() {
     let mut reports: Vec<Report> = std::fs::read_dir(&dir)
         .expect("bench dir")
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |x| x == "bench"))
+        .filter(|e| e.path().extension().map_or(false, |x| x == "json"))
         .map(|e| {
             let line = std::fs::read_to_string(e.path()).expect("read");
-            Report::from_line(line.trim()).expect("parse")
+            Report::from_json(line.trim()).expect("parse")
         })
         .collect();
     assert_eq!(
         reports.len(),
         6,
-        "terminal fleet needs six .bench reports in {}",
+        "terminal fleet needs six .bench.json reports in {}",
         dir.display()
     );
     let units: std::collections::BTreeSet<_> =
