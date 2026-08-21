@@ -1,4 +1,4 @@
-//! 골든 코덱 — 선언된 화면 상태를 사람이 읽고 리뷰할 수 있는 텍스트로 담고 되읽는다.
+//! Reference-state codec for reviewable, declared terminal screen states.
 //!
 //! 포맷은 데이터 파일이지 언어가 아니다(줄 하나 = 값 하나, 행 하나 = 칸들). 각 행 앞에 그 행의
 //! 평문을 주석으로 달아, 기계용 칸 목록과 사람이 읽는 화면을 같은 파일에서 나란히 본다.
@@ -23,30 +23,32 @@ use std::path::PathBuf;
 
 use crate::state::{Attrs, Cell, Color, Modes, Row, ScreenState};
 
-/// 골든 파일을 읽어 선언된 화면 상태를 돌려준다. 파일이 없으면 만드는 법을 적어 죽는다(무음 금지).
+/// Reads the declared reference state. Missing or invalid state is an explicit failure.
 pub fn load(stem: &str) -> ScreenState {
     let path = path_of(stem);
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| {
         panic!(
-            "골든이 없다: {} ({e})\n\
-             부트스트랩: 유닛에서 `SOKSAK_GOLDEN_OUT=<dir> cargo test --test conformance -- --ignored dump_goldens`\n\
-             — 그 산출물은 후보일 뿐이다. 엔진끼리 대조하고 SPEC.md §11·§12 로 판정한 뒤에만 골든이 된다.",
+            "reference state is missing: {} ({e})\n\
+             부트스트랩: 유닛에서 `SOKSAK_REFERENCE_STATE_OUT=<dir> cargo test --test conformance -- --ignored dump_reference_states`\n\
+             The output is only a candidate until SPEC.md sections 11 and 12 justify it.",
             path.display()
         )
     });
-    from_text(&text).unwrap_or_else(|e| panic!("골든이 깨졌다 {}: {e}", path.display()))
+    from_text(&text).unwrap_or_else(|e| panic!("invalid reference state {}: {e}", path.display()))
 }
 
-/// 골든 파일 경로 — 이 크레이트의 `goldens/` 아래. 유닛이 path 의존으로 물어도 계약 repo 를 가리킨다.
+/// Returns the contract-owned reference-state path.
 pub fn path_of(stem: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("goldens").join(format!("{stem}.golden"))
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("reference_states")
+        .join(format!("{stem}.reference-state"))
 }
 
 // ── 직렬화 ───────────────────────────────────────────────────────────────────
 
 pub fn to_text(s: &ScreenState) -> String {
     let mut out = String::new();
-    out.push_str("# soksak-contract-terminal — 선언된 화면 상태(골든).\n");
+    out.push_str("# soksak-contract-terminal — declared reference state.\n");
     out.push_str("# 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.\n");
     out.push_str(&format!("cols {}\n", s.cols));
     out.push_str(&format!("rows {}\n", s.rows));
@@ -97,7 +99,11 @@ fn cell_token(c: &Cell) -> String {
     if c.is_blank_default() {
         return ".".to_string();
     }
-    let cp: Vec<String> = c.text.chars().map(|ch| format!("{:X}", ch as u32)).collect();
+    let cp: Vec<String> = c
+        .text
+        .chars()
+        .map(|ch| format!("{:X}", ch as u32))
+        .collect();
     format!(
         "{}:{}:{}:{}:{}",
         cp.join("."),
@@ -201,7 +207,15 @@ pub fn from_text(text: &str) -> Result<ScreenState, String> {
         }
     }
 
-    Ok(ScreenState { cols, rows, alt, cursor, modes, history, visible })
+    Ok(ScreenState {
+        cols,
+        rows,
+        alt,
+        cursor,
+        modes,
+        history,
+        visible,
+    })
 }
 
 fn parse<T: std::str::FromStr>(tok: Option<&str>, what: &str) -> Result<T, String> {
@@ -214,7 +228,10 @@ fn parse_row(rest: &str) -> Result<Row, String> {
     let mut cells: Vec<Cell> = Vec::new();
     for tok in rest.split_whitespace() {
         let (run, body) = match tok.split_once('*') {
-            Some((n, rest)) => (n.parse::<usize>().map_err(|_| format!("반복 수 {n}"))?, rest),
+            Some((n, rest)) => (
+                n.parse::<usize>().map_err(|_| format!("반복 수 {n}"))?,
+                rest,
+            ),
             None => (1, tok),
         };
         let cell = parse_cell(body)?;
@@ -243,7 +260,13 @@ fn parse_cell(tok: &str) -> Result<Cell, String> {
         "w" => true,
         w => return Err(format!("폭 {w}")),
     };
-    Ok(Cell { text, fg: parse_color(f[2])?, bg: parse_color(f[3])?, attrs: parse_attrs(f[4])?, wide })
+    Ok(Cell {
+        text,
+        fg: parse_color(f[2])?,
+        bg: parse_color(f[3])?,
+        attrs: parse_attrs(f[4])?,
+        wide,
+    })
 }
 
 fn parse_color(tok: &str) -> Result<Color, String> {
@@ -251,7 +274,9 @@ fn parse_color(tok: &str) -> Result<Color, String> {
         return Ok(Color::Default);
     }
     if let Some(idx) = tok.strip_prefix('p') {
-        return Ok(Color::Palette(idx.parse().map_err(|_| format!("팔레트 {tok}"))?));
+        return Ok(Color::Palette(
+            idx.parse().map_err(|_| format!("팔레트 {tok}"))?,
+        ));
     }
     if tok.len() == 6 {
         let v = |i: usize| u8::from_str_radix(&tok[i..i + 2], 16).map_err(|_| format!("색 {tok}"));
@@ -284,7 +309,7 @@ fn parse_attrs(tok: &str) -> Result<Attrs, String> {
 mod tests {
     use super::*;
 
-    // 코덱은 왕복해야 한다 — 골든이 읽고 쓰는 사이에 상태가 새면 시험 전체가 무의미하다.
+    // 코덱은 왕복해야 한다 — reference state이 읽고 쓰는 사이에 상태가 새면 시험 전체가 무의미하다.
     #[test]
     fn round_trips_a_state() {
         let s = ScreenState {
@@ -292,20 +317,38 @@ mod tests {
             rows: 2,
             alt: true,
             cursor: (3, 1),
-            modes: Modes { bracketed_paste: true, line_wrap: true, ..Modes::default() },
+            modes: Modes {
+                bracketed_paste: true,
+                line_wrap: true,
+                ..Modes::default()
+            },
             history: vec![Row::normalized(vec![Cell {
                 text: "가".into(),
                 fg: Color::Rgb(1, 2, 3),
                 bg: Color::Palette(9),
-                attrs: Attrs { bold: true, underline: true, ..Attrs::default() },
+                attrs: Attrs {
+                    bold: true,
+                    underline: true,
+                    ..Attrs::default()
+                },
                 wide: true,
             }])],
             visible: vec![
-                Row::normalized(vec![Cell { text: "A".into(), ..Cell::blank() }, Cell::blank()]),
+                Row::normalized(vec![
+                    Cell {
+                        text: "A".into(),
+                        ..Cell::blank()
+                    },
+                    Cell::blank(),
+                ]),
                 Row::default(),
             ],
         };
         let text = to_text(&s);
-        assert_eq!(from_text(&text).expect("parse"), s, "골든 코덱은 왕복해야 한다");
+        assert_eq!(
+            from_text(&text).expect("parse"),
+            s,
+            "reference-state codec must round-trip"
+        );
     }
 }

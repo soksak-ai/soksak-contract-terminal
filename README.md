@@ -15,7 +15,7 @@ unchanged. The repo name says what this repo is: a contract, not a sidecar.
 - **`SPEC.md`** — the contract. It used to live in the `soksak-sidecar-terminal-alacritty`
   repo, which made one engine unit the owner of the rules every engine unit is judged by.
   It does not any more.
-- **`goldens/`** — the declared screens. For each fixture: *this stream must produce this
+- **`reference_states/`** — the declared screens. For each fixture: *this stream must produce this
   screen*, with the reasoning that puts it there at the top of the file.
 - **`src/corpus.rs`** — the seven fixture streams. The contract owns them; no unit keeps a
   copy.
@@ -31,18 +31,18 @@ every unit's restore paint with the Alacritty engine and compared that against A
 rendering of the raw stream. Three things were wrong with it. It defined "correct" as
 "what Alacritty does". It made the Alacritty unit its own judge. And it could not see a
 real misinterpretation inside another engine, because the re-rendering erased it — which
-is not a hypothetical: SPEC.md §13 records the defect it missed and the golden found.
+is not a hypothetical: SPEC.md §13 records the defect it missed and the reference_state found.
 
-The standard is the declared golden. Every engine, Alacritty included, is an equal
+The standard is the declared reference_state. Every engine, Alacritty included, is an equal
 candidate graded against it.
 
 ## How a unit is graded
 
 Three axes, each an ordinary assertion:
 
-1. **Interpretation** — feed the corpus stream; the mirror's screen state equals the golden.
+1. **Interpretation** — feed the corpus stream; the mirror's screen state equals the reference_state.
 2. **Restore** — feed that mirror's `rehydrate` paint to a fresh mirror of the same engine;
-   its screen state equals the *same* golden. The golden being external is what stops a
+   its screen state equals the *same* reference_state. The reference_state being external is what stops a
    self-consistent error from hiding.
 3. **Replay guard** — no byte leaves the mirror, no query rides in the paint.
 
@@ -61,18 +61,18 @@ of them are silent, the contract decides and records the decision in the silence
 (SPEC.md §11.S) with the argument that forced it.
 
 **The contract also declares the state a mirror is born in** (SPEC.md §11.I). It has to: a
-golden declares the whole screen, and a screen includes the modes a stream never mentioned.
+reference_state declares the whole screen, and a screen includes the modes a stream never mentioned.
 Those values used to come from a running engine — and §13 records what that cost.
 
-## Bootstrapping a golden
+## Bootstrapping a reference_state
 
-An engine's output can propose a candidate — `SOKSAK_GOLDEN_OUT=<dir> cargo test --test
-conformance -- --ignored dump_goldens`, run from a unit — and comparing the candidates of
+An engine's output can propose a candidate — `SOKSAK_REFERENCE_STATE_OUT=<dir> cargo test --test
+conformance -- --ignored dump_reference_states`, run from a unit — and comparing the candidates of
 several independent engines is a cheap way to find the places worth thinking about. But
 agreement is evidence, not authority: four engines agreeing on a wrong answer produce a wrong
-golden that the suite will then defend forever. A candidate becomes a golden only once it is
+reference_state that the suite will then defend forever. A candidate becomes a reference_state only once it is
 argued against the ladder, and that argument is written into the file — where a test enforces
-it (`tests/goldens_cite_specs.rs` fails if an engine's name appears in a golden's reasoning,
+it (`tests/reference_states_cite_specs.rs` fails if an engine's name appears in a reference_state's reasoning,
 or if the reasoning cites nothing at all).
 
 ## Current standing
@@ -102,7 +102,7 @@ was made faster (68 → 102 MB/s), and it now drops nothing. SPEC.md §14.3.
 ## The gate
 
 **A unit passes when `scripts/gate.sh` passes, and by no other means.** One command, everything
-blocking: the seven fixtures against the goldens, the unit tests, the real-daemon integration,
+blocking: the seven fixtures against the reference_states, the unit tests, the real-daemon integration,
 and the performance budgets. The benchmark is `#[ignore]`d in the ordinary test run — it would
 slow the development loop — so a budget that only ran when someone remembered to ask for it
 would have been a comment, not a budget. The gate is what makes it binding.

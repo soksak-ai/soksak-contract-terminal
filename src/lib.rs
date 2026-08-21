@@ -5,21 +5,21 @@
 //! `soksak-spec-sidecar-terminal` 로 불변이다(문자열 값이지 배포 단위 이름이 아니다).
 //!
 //! **엔진이 없다.** 이 크레이트는 어떤 VT 엔진에도 의존하지 않는다. 정답은 엔진이 하는 짓이
-//! 아니라 [`goldens`](../goldens) 에 **선언된 화면 상태**다 — 그래서 어느 구현체도 1급이 아니고,
-//! 전 엔진이 동등한 후보로 같은 골든에 채점된다. 골든의 근거는 SPEC.md §11(정규형)·§12(골든)에
+//! 아니라 [`reference_states`](../reference_states) 에 **선언된 화면 상태**다 — 그래서 어느 구현체도 1급이 아니고,
+//! 전 엔진이 동등한 후보로 같은 reference state에 채점된다. reference state의 근거는 SPEC.md §11(정규형)·§12(reference state)에
 //! 적혀 있고, 그 판정이 곧 표준 제정이다.
 //!
 //! 채점 3축(엔진 불요):
-//!   1. **해석 적합성** — 코퍼스 스트림을 먹은 미러의 [`ScreenState`] == 골든.
+//!   1. **해석 적합성** — 코퍼스 스트림을 먹은 미러의 [`ScreenState`] == reference state.
 //!   2. **복원 적합성** — 그 미러의 `rehydrate` 페인트를 **신선한 같은 미러**에 먹인 뒤의
-//!      [`ScreenState`] == **같은 골든**. 골든이 바깥에 있으므로 해석·복원이 나란히 틀리는
+//!      [`ScreenState`] == **같은 reference state**. reference state이 바깥에 있으므로 해석·복원이 나란히 틀리는
 //!      자기-일관 오류도 숨지 못한다.
 //!   3. **재생 가드** — 위 과정에서 PTY 로 나간 바이트 0, 재생 페인트에 질의 바이트 0.
 
 pub mod bench;
 pub mod corpus;
 pub mod daemon_demand;
-pub mod golden;
+pub mod reference_state;
 pub mod state;
 
 pub use corpus::{Fixture, COLS, ROWS};
@@ -57,17 +57,17 @@ pub trait MirrorUnderTest {
 /// 재생 페인트에 실려서는 안 되는 질의 바이트(이중응답 원천 차단).
 const QUERY_BYTES: [&[u8]; 4] = [b"\x1b[c", b"\x1b[>c", b"\x1b[6n", b"\x1b]11;?"];
 
-/// 한 건의 합격시험. 골든에 대해 해석·복원·재생 가드를 모두 확인한다.
+/// 한 건의 합격시험. reference state에 대해 해석·복원·재생 가드를 모두 확인한다.
 ///
 /// 평범한 단언 함수다 — 러너도 매크로 마법도 없다. 유닛은 `#[test]` 하나에서 이걸 부른다.
 pub fn assert_conforms<M: MirrorUnderTest>(fixture: Fixture) {
     let stream = fixture.stream();
 
-    // ── 1. 해석 적합성 — 스트림을 먹은 화면이 선언된 골든과 같은가.
+    // ── 1. 해석 적합성 — 스트림을 먹은 화면이 선언된 reference state과 같은가.
     let mut mirror = M::new(COLS, ROWS);
     mirror.feed(&stream);
     let interpreted = mirror.screen_state();
-    let expected = golden::load(fixture.stem());
+    let expected = reference_state::load(fixture.stem());
     assert_states_eq(&expected, &interpreted, fixture, "해석");
 
     // ⑤ 는 질의를 삼켰다는 관찰이 픽스처의 본문이다.
@@ -79,7 +79,7 @@ pub fn assert_conforms<M: MirrorUnderTest>(fixture: Fixture) {
         );
     }
 
-    // ── 2. 복원 적합성 — 재생 페인트를 신선한 미러에 먹이면 같은 골든이 나오는가.
+    // ── 2. 복원 적합성 — 재생 페인트를 신선한 미러에 먹이면 같은 reference state이 나오는가.
     let paint = mirror.rehydrate();
     assert_no_queries(&paint, fixture, "rehydrate");
     let mut restored = M::new(COLS, ROWS);
@@ -96,9 +96,9 @@ pub fn assert_conforms<M: MirrorUnderTest>(fixture: Fixture) {
 
     // ── 4. 국면이 더 있는 픽스처.
     if let Some(epilogue) = fixture.epilogue() {
-        // 원본과 복원본 양쪽에 같은 이탈 국면을 먹인다 — 둘 다 같은 골든이어야 한다. 복원본이
+        // 원본과 복원본 양쪽에 같은 이탈 국면을 먹인다 — 둘 다 같은 reference state이어야 한다. 복원본이
         // alt 밑에 얼려 운반한 프라임 화면이 실재해야만 통과한다.
-        let after = golden::load(&format!("{}.after", fixture.stem()));
+        let after = reference_state::load(&format!("{}.after", fixture.stem()));
         mirror.feed(&epilogue);
         assert_states_eq(&after, &mirror.screen_state(), fixture, "이탈(원본)");
         restored.feed(&epilogue);
@@ -111,7 +111,7 @@ pub fn assert_conforms<M: MirrorUnderTest>(fixture: Fixture) {
         assert_no_queries(&cold, fixture, "cold_paint");
         let mut sealed = M::new(COLS, ROWS);
         sealed.feed(&cold);
-        let expected_cold = golden::load(&format!("{}.cold", fixture.stem()));
+        let expected_cold = reference_state::load(&format!("{}.cold", fixture.stem()));
         assert_states_eq(&expected_cold, &sealed.screen_state(), fixture, "cold");
         assert_eq!(
             sealed.suppressed_replies(),
@@ -129,7 +129,7 @@ pub fn assert_conforms<M: MirrorUnderTest>(fixture: Fixture) {
 /// 리사이즈마다) 계약 `resize` op 로 미러를 pane 폭에 맞춘다. 이 단언은 그 전제 — "미러를 다른 폭으로
 /// resize 한 뒤 rehydrate 하면, 그 재생 페인트를 신선한 **같은 폭** 미러에 먹인 화면이 resize 된 원본과
 /// 정규형으로 같고(왕복 충실), 논리 내용이 보존된다" — 를 엔진 불가지로 못박는다. 깨지면 좁아진 pane 의
-/// warm 복원이 격자를 깬다(실측). 골든 불요: 재생 화면을 resize 된 원본과 자기대조하고, 내용 보존은
+/// warm 복원이 격자를 깬다(실측). reference state 불요: 재생 화면을 resize 된 원본과 자기대조하고, 내용 보존은
 /// 입력 줄이 재감김 결과에 온전히 남는지로 확인한다(reflow 가 손실·뒤섞음이 아님).
 pub fn assert_resize_reflow<M: MirrorUnderTest>() {
     // COLS(80) 한 행을 넘는 논리 줄(120자) — 재감김이 일어나야 검사가 의미 있다. 공백 없는 패턴이라
@@ -156,7 +156,10 @@ pub fn assert_resize_reflow<M: MirrorUnderTest>() {
             want, got,
             "resize→{cols}폭 후 rehydrate 재도색이 resize 된 원본과 어긋남(왕복 충실 실패)"
         );
-        assert_eq!(got.cols, cols, "resize→{cols}폭: 재생 화면 폭이 목표와 다름");
+        assert_eq!(
+            got.cols, cols,
+            "resize→{cols}폭: 재생 화면 폭이 목표와 다름"
+        );
 
         // ② 내용 보존 — resize 는 재감김일 뿐 손실이 아니다. 스크롤백+화면 행 텍스트를 이으면(꼬리
         // 공백 제거) 원본 줄이 그 안에 온전히 남는다.
@@ -197,13 +200,21 @@ fn assert_states_eq(expected: &ScreenState, actual: &ScreenState, fixture: Fixtu
     assert_eq!(expected.rows, actual.rows, "{f}/{phase}: rows");
     assert_eq!(expected.alt, actual.alt, "{f}/{phase}: alt-screen 활성");
     assert_eq!(expected.cursor, actual.cursor, "{f}/{phase}: 커서(x, y)");
-    assert_eq!(expected.modes, actual.modes, "{f}/{phase}: private mode 집합");
+    assert_eq!(
+        expected.modes, actual.modes,
+        "{f}/{phase}: private mode 집합"
+    );
     assert_eq!(
         expected.history.len(),
         actual.history.len(),
         "{f}/{phase}: 스크롤백 행 수"
     );
-    for (i, (e, a)) in expected.history.iter().zip(actual.history.iter()).enumerate() {
+    for (i, (e, a)) in expected
+        .history
+        .iter()
+        .zip(actual.history.iter())
+        .enumerate()
+    {
         assert_row_eq(e, a, &format!("{f}/{phase}: 스크롤백 H{i}"));
     }
     assert_eq!(
@@ -211,7 +222,12 @@ fn assert_states_eq(expected: &ScreenState, actual: &ScreenState, fixture: Fixtu
         actual.visible.len(),
         "{f}/{phase}: 보이는 행 수"
     );
-    for (i, (e, a)) in expected.visible.iter().zip(actual.visible.iter()).enumerate() {
+    for (i, (e, a)) in expected
+        .visible
+        .iter()
+        .zip(actual.visible.iter())
+        .enumerate()
+    {
         assert_row_eq(e, a, &format!("{f}/{phase}: 보이는 화면 V{i}"));
     }
 }
@@ -230,24 +246,27 @@ fn assert_row_eq(expected: &Row, actual: &Row, ctx: &str) {
     assert_eq!(expected.0.len(), actual.0.len(), "{ctx}: 칸 수");
 }
 
-/// 골든 부트스트랩·갱신 — 유닛이 자기 엔진으로 코퍼스를 돌려 정규형 텍스트를 내놓는다.
+/// reference state 부트스트랩·갱신 — 유닛이 자기 엔진으로 코퍼스를 돌려 정규형 텍스트를 내놓는다.
 /// 산출물을 **그대로 신뢰해 굳히지 마라**: 엔진끼리 대조하고 VT 스펙(ctlseqs)과 견준 뒤에만
-/// 골든이 된다(SPEC.md §12).
+/// reference state이 된다(SPEC.md §12).
 pub fn dump<M: MirrorUnderTest>(fixture: Fixture) -> Vec<(String, String)> {
     let stream = fixture.stream();
     let mut out = Vec::new();
 
     let mut mirror = M::new(COLS, ROWS);
     mirror.feed(&stream);
-    out.push((fixture.stem().to_string(), golden::to_text(&mirror.screen_state())));
+    out.push((
+        fixture.stem().to_string(),
+        reference_state::to_text(&mirror.screen_state()),
+    ));
 
     // 복원본도 함께 낸다(`<이름>.restored`). 해석은 맞는데 복원이 어긋나는 결함은 이 둘을 나란히
-    // 놓아야 보인다 — 골든 후보가 아니라 진단용이다(설치하지 않는다).
+    // 놓아야 보인다 — reference state 후보가 아니라 진단용이다(설치하지 않는다).
     let mut restored = M::new(COLS, ROWS);
     restored.feed(&mirror.rehydrate());
     out.push((
         format!("{}.restored", fixture.stem()),
-        golden::to_text(&restored.screen_state()),
+        reference_state::to_text(&restored.screen_state()),
     ));
 
     if fixture == Fixture::ColdPaintAlt {
@@ -255,7 +274,7 @@ pub fn dump<M: MirrorUnderTest>(fixture: Fixture) -> Vec<(String, String)> {
         sealed.feed(&mirror.cold_paint());
         out.push((
             format!("{}.cold", fixture.stem()),
-            golden::to_text(&sealed.screen_state()),
+            reference_state::to_text(&sealed.screen_state()),
         ));
     }
 
@@ -263,7 +282,7 @@ pub fn dump<M: MirrorUnderTest>(fixture: Fixture) -> Vec<(String, String)> {
         mirror.feed(&epilogue);
         out.push((
             format!("{}.after", fixture.stem()),
-            golden::to_text(&mirror.screen_state()),
+            reference_state::to_text(&mirror.screen_state()),
         ));
     }
 

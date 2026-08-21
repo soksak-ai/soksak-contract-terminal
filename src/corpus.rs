@@ -4,7 +4,7 @@
 //! 이스케이프 한가운데·UTF-8 한가운데를 자르게 만든다. 그래서 바이트 길이가 픽스처의 전제다 —
 //! 길이를 바꾸면 절단 지점이 어긋나 시험이 겨누던 결함을 놓친다.
 
-/// 미러 격자 — 계약이 고정한다(골든이 이 격자를 전제로 선언돼 있다).
+/// 미러 격자 — 계약이 고정한다(reference state이 이 격자를 전제로 선언돼 있다).
 pub const COLS: u16 = 80;
 pub const ROWS: u16 = 24;
 
@@ -15,7 +15,7 @@ pub const ROWS: u16 = 24;
 /// 데몬(soksak-ptyd)의 실제 값은 그것이 아니다: 원시 링은 `RING_CAP` = 256 KiB 이고, tee 구독자
 /// 버퍼는 `TEE_BUF_CAP` = 1,000,000 바이트다. 1 MiB 는 그 둘 **모두를 넉넉히 넘긴다** — 픽스처가
 /// 노리는 조건(모드 세트가 창 밖으로 밀린다·스크롤백 창이 넘친다)은 그대로 성립하므로 값은 바꾸지
-/// 않는다. 바꾸면 일곱 스트림의 바이트 길이가 전부 달라지고 골든 전체가 흔들리는데, 그 대가로
+/// 않는다. 바꾸면 일곱 스트림의 바이트 길이가 전부 달라지고 reference state 전체가 흔들리는데, 그 대가로
 /// 얻는 것이 없다.
 ///
 /// 또 하나 — 이 상수로 맞춰 둔 **이스케이프 중간 절단 정렬은 합격시험이 쓰지 않는다**. 시험은
@@ -54,7 +54,7 @@ impl Fixture {
         Fixture::DecLineDrawing,
     ];
 
-    /// 골든 파일 이름의 어간(goldens/<stem>.golden).
+    /// reference state 파일 이름의 어간(reference_states/<stem>.reference_state).
     pub fn stem(self) -> &'static str {
         match self {
             Fixture::MidEscapeTail => "mid_escape_tail",
@@ -175,7 +175,7 @@ fn cjk_width() -> Vec<u8> {
     assert_eq!(rows.len(), RING + 1, "절단 정렬이 픽스처의 전제");
 
     // 이 픽스처의 판정(오른쪽 여백의 wide 문자가 다음 줄로 넘어간다)은 **자동 줄바꿈이 켜져 있다**는
-    // 전제 위에 선다. 그 전제를 기본값에 맡기지 않고 스트림이 스스로 선언한다(DECSET 7) — 골든이
+    // 전제 위에 선다. 그 전제를 기본값에 맡기지 않고 스트림이 스스로 선언한다(DECSET 7) — reference state이
     // "기본값이 무엇이냐"는 별개의 질문에 걸리지 않게. 계약의 출생 상태에서도 이미 켜짐이므로
     // (SPEC.md §11.I) 이 시퀀스는 화면을 바꾸지 않는다: 픽스처를 자립시킬 뿐이다.
     let mut stream = b"\x1b[?7h".to_vec();
@@ -230,13 +230,17 @@ fn alt_screen() -> Vec<u8> {
 fn private_modes() -> Vec<u8> {
     let mut stream = Vec::new();
     // 세션 초기에 켜진 모드들 — 이후 출력이 링 용량을 넘어 세트 시퀀스가 창 밖으로 밀린다.
-    stream.extend_from_slice(b"\x1b[?2004h\x1b[?1002h\x1b[?1006h\x1b[?1h\x1b=\x1b[?1004h\x1b[?1007h");
+    stream
+        .extend_from_slice(b"\x1b[?2004h\x1b[?1002h\x1b[?1006h\x1b[?1h\x1b=\x1b[?1004h\x1b[?1007h");
     stream.extend_from_slice(b"MODES-SET-MARK\r\n");
     for i in 0..1200 {
         stream.extend(heavy_row(i));
     }
     stream.extend_from_slice(b"AFTER-FILL-MARK\r\n");
-    assert!(stream.len() > RING + 4096, "픽스처 전제: 모드 세트가 링 창 밖");
+    assert!(
+        stream.len() > RING + 4096,
+        "픽스처 전제: 모드 세트가 링 창 밖"
+    );
     stream
 }
 

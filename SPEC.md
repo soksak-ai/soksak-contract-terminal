@@ -9,7 +9,7 @@ peers with. The English text is canonical.
 **The contract does not live inside an implementation.** It used to: this document
 sat in the `soksak-sidecar-terminal-alacritty` repo, which made one engine unit the
 owner of the rules every engine unit is judged by. It owns them no longer. The
-contract, the corpus, the declared goldens, and the acceptance assertions live here,
+contract, the corpus, the declared reference_states, and the acceptance assertions live here,
 in a repo that implements nothing and ships nothing.
 
 **Repo name vs contract id.** The repo is `soksak-contract-terminal`; the contract id
@@ -53,7 +53,27 @@ peers with the daemon — the same transport shape as `soksak-ptyd` (SIDECARS.md
 exits when a live instance already answers (singleton). Death is loud at the
 consumer, never silent.
 
-## 3. Two socket faces
+## 3. Provider and dependency interfaces
+
+The terminal-state provider serves terminal plugins and consumes
+`soksak-spec-sidecar-pty` exactly at version `0.0.1`. The PTY contract is the sole owner of PTY
+paths, control-envelope payloads, stream frames, observer preparation, snapshot leases and renderer
+ACK semantics. This contract does not redefine them.
+
+Current session creation is atomic: `terminal.prepareSession` prepares and opens an observer stream,
+the plugin passes its token to `pty.open`, and `terminal.ensureSession` consumes the opened event.
+The observer is installed before the child emits its first byte. Warm restore returns a snapshot
+lease at the exact output sequence. Archived checkpoints are provider-owned, encrypted before
+storage and written atomically; the PTY daemon stores no terminal checkpoint or plaintext blob.
+
+### Removed draft below
+
+The original §3–§6 text below documents a removed pre-0.0.1 draft. Its two PTY sockets, unframed
+hello, `createOrAttach`, `listSessions`, `getSnapshot`, `storeBlob`, near-birth subscription and
+daemon-owned checkpoint seal are not contract requirements and must not be implemented. They remain
+temporarily as design history until the surrounding section references are rewritten.
+
+## 3.1 Historical two-socket draft (non-normative)
 
 - **Server face** — terminal plugins connect and request restore. Messages in §5.
 - **Consumer face** — the sidecar connects to the daemon as a client: it
@@ -120,7 +140,7 @@ request-response, so it rides the service socket.
   received from the daemon tee (a dropped-byte discontinuity is never silent).
   No side effect.
 
-## 6. Consumer face — daemon peering (sidecar → daemon)
+## 6. Historical daemon peering draft (non-normative, removed)
 
 The sidecar is a client of the daemon's two sockets under the identity home —
 the same paths the app uses (`ptyd-p<N>.sock`, `ptyd-p<N>-stream.sock`,
@@ -211,7 +231,7 @@ not in the tee. The design decision:
 
 No engine is canonical. The VT state machine that produces the paint is chosen per
 unit, and every engine — including Alacritty — is an equal candidate graded by the
-declared goldens (§11, §12). This matters because the alternative was tried: for a
+declared reference_states (§11, §12). This matters because the alternative was tried: for a
 while the acceptance suite rendered each unit's restore paint with the Alacritty
 engine and compared it against Alacritty's own rendering of the raw stream. That made
 "correct" mean "what Alacritty does", made the Alacritty unit its own judge, and — as
@@ -225,7 +245,7 @@ the place a value was read from. That is what happened to the state a mirror is 
 (§11.I) and to the performance floor (§14) — no engine judged anything, and both numbers
 were still an engine's. **§11.A is the rule that closes the second door**: it says where
 a value may come from, and an engine is not on the list at any rung. Everything below —
-the canonical form, the goldens, the budgets — answers to it.
+the canonical form, the reference_states, the budgets — answers to it.
 
 **Licensing is per-unit.** Each engine unit carries the license and attribution of the
 engine it bundles. The contract imposes none, and no license crosses between units.
@@ -233,16 +253,16 @@ This repo bundles no engine at all — it does not even depend on one.
 
 ## 9. Acceptance
 
-A unit conforms when its mirror, graded against the **declared goldens** (§12) over
+A unit conforms when its mirror, graded against the **declared reference_states** (§12) over
 the **corpus** (seven fixtures: a ring cut mid-escape, a ring cut mid-UTF-8 with wide
 characters, alt-screen with a frozen primary, private modes beyond the ring window,
 the replay guard, cold paint of an alt-screen TUI, and DEC line drawing), satisfies
 all three axes:
 
 1. **Interpretation.** Feed the corpus stream; the mirror's screen state (§11) equals
-   the golden.
+   the reference_state.
 2. **Restore.** Feed that mirror's `rehydrate` paint to a **fresh mirror of the same
-   engine**; its screen state equals the **same golden**. Because the golden is
+   engine**; its screen state equals the **same reference_state**. Because the reference_state is
    external, an engine that misreads the stream and then re-misreads its own paint the
    same way does not pass — a self-consistent error has nowhere to hide.
 3. **Replay guard.** No byte leaves the mirror, the paint carries no query bytes, and
@@ -289,7 +309,7 @@ here instead, by rule. The types are in `src/state.rs`; the rules are these.
 ### 11.A The authority ladder — where a rule may come from
 
 A standard is only as good as its sources. Every value this contract declares — every
-golden cell, every mode, every initial state — is answerable to this ladder, and to
+reference_state cell, every mode, every initial state — is answerable to this ladder, and to
 nothing else. **An engine is not an authority at any rung.** Four engines agreeing is
 evidence that a question is settled somewhere; it is never the settlement.
 
@@ -328,7 +348,7 @@ engines happened to do".
 
 ### 11.I The initial state — a mirror is born here
 
-A golden declares the whole screen, and a screen includes the modes that were never
+A reference_state declares the whole screen, and a screen includes the modes that were never
 mentioned in the stream. Those values have to come from somewhere, and until now they
 came from whichever engine was consulted: Alacritty's `TermMode` default carried
 `ALTERNATE_SCROLL`, and the other three units were built to agree with it — two of them
@@ -350,11 +370,11 @@ fact about the screen — it is a fact about the engine.
 | `bracketed_paste` (2004), `mouse_click` (1000), `mouse_drag` (1002), `mouse_motion` (1003), `sgr_mouse` (1006), `utf8_mouse` (1005), `focus_in_out` (1004) | **reset** | §11.S **S4** — the documents name no initial value, so the contract decides. |
 | `insert` (IRM) | **reset** | §11.S **S5**. |
 
-The mode vector of any golden whose stream never touches a mode is therefore a
+The mode vector of any reference_state whose stream never touches a mode is therefore a
 restatement of this table; fixture ⑤ (`replay_guard`) is the one that says nothing else,
 so it is where the birth state is pinned.
 
-**The rule has teeth beyond the goldens.** The restore paint may only mention a mode the
+**The rule has teeth beyond the reference_states.** The restore paint may only mention a mode the
 *session* changed. While the contract's initial state was Alacritty's, every unit's paint
 emitted `ESC[?1007l` for a session that had never heard of mode 1007 — quietly turning
 alternate scroll **off** in the user's terminal on every restore, because one engine's
@@ -443,27 +463,27 @@ h` / `l`, "Show cursor (DECTCEM), VT220"), and the canonical form already carrie
 set. A second, separate flag for the same fact could only ever be a way for the two to
 disagree.
 
-## 12. Goldens — the declared screens
+## 12. Reference states — the declared screens
 
-For each fixture the contract declares the screen the stream must produce: `goldens/`,
+For each fixture the contract declares the screen the stream must produce: `reference_states/`,
 one text file per fixture, each opening with the reasoning that puts it there. The
 format is data, not a language — one line per value, one line per row, each row preceded
 by its plain text so the file can be read as a screen and reviewed as a table.
 
-A golden is **declared, not recorded**. An engine's output may be used to bootstrap a
+A reference_state is **declared, not recorded**. An engine's output may be used to bootstrap a
 candidate (`dump`, behind `--ignored`), and cross-checking the candidates of several
 independent engines is a cheap way to find the places worth thinking about — but
 agreement is evidence, not authority. Four engines agreeing on a wrong answer produces a
-wrong golden and a suite that will never see it again.
+wrong reference_state and a suite that will never see it again.
 
-What makes a golden a golden is the **argument at the top of the file**, and that argument
+What makes a reference_state a reference_state is the **argument at the top of the file**, and that argument
 answers to the ladder (§11.A): it cites the specification that settles the question, or —
 where none does — it names the silence-table entry where the contract decided (§11.S).
 Fixture ⑦ declares box glyphs because Unicode's Box Drawing names describe the same
 geometry DEC's glyph table names, not because an engine drew a box.
 
-**The rule is enforced, not merely stated.** `tests/goldens_cite_specs.rs` fails the build if
-an engine's name appears anywhere in a golden's reasoning, and fails it if a golden's
+**The rule is enforced, not merely stated.** `tests/reference_states_cite_specs.rs` fails the build if
+an engine's name appears anywhere in a reference_state's reasoning, and fails it if a reference_state's
 reasoning cites neither a specification nor a silence-table entry. Prose discipline decays;
 a test does not.
 
@@ -473,10 +493,10 @@ say — the contract judged. §13 records those judgements.
 ## 13. Candidate review
 
 **The initial state was an engine's, and all four units agreed with it.** This is the finding
-that matters most, because nothing failed. Every golden declares the whole mode vector,
+that matters most, because nothing failed. Every reference_state declares the whole mode vector,
 including the modes the stream never mentions — and those values had been read off a running
 engine. Alacritty's `TermMode` default carries `ALTERNATE_SCROLL`, so `alternate_scroll = 1`
-went into the goldens as the state a mirror is born in. The other three units were then built
+went into the reference_states as the state a mirror is born in. The other three units were then built
 to match: the ghostty seat read its engine's mode 1007 (also on by default), and the wezterm
 and vt100 seats wrote `alternate_scroll: true` into their own initializers by hand. Four
 units, unanimous, 7 of 7 — and the value was never anything but one engine's habit.
@@ -495,7 +515,7 @@ the engines, which is the only direction that was ever allowed.
   to be either on or off, because one engine's power-on default said it was on and the paint
   existed to reconcile against that default. With the birth state derived from the
   specification, the line is simply gone: the paint now mentions 1007 only when the session
-  set it. Nothing detected this. Nothing could: the suite compared the mirror to a golden that
+  set it. Nothing detected this. Nothing could: the suite compared the mirror to a reference_state that
   agreed with the engine, and the engine agreed with itself.
 
 **Wide character at the right margin — three engines against one.** With 79 columns
@@ -509,7 +529,7 @@ and two of them keep a dedicated cell state for the reserved column (Alacritty's
 that the wrap is the rule. **wezterm-term instead packed the character into the last
 column**, yielding a row that claimed 81 columns of content in an 80-column grid and a
 scrollback one row short: its print path checked only whether the cursor had passed the
-margin, never whether the grapheme fit in what was left. The golden declares the wrap.
+margin, never whether the grapheme fit in what was left. The reference_state declares the wrap.
 
   Closed at its owner, as the vt100 charset gap was. A local fork adds the missing check —
   under DECAWM a grapheme wider than the remaining columns moves to the next line — and
@@ -521,7 +541,7 @@ margin, never whether the grapheme fit in what was left. The golden declares the
   Alacritty's rendering of the raw stream — wezterm passed all seven. It passed because
   its serializer emits text, and Alacritty, replaying that text, wrapped the wide
   character correctly; the misinterpretation inside wezterm's own grid was erased by the
-  re-rendering. Only a declared golden, compared against the engine's own screen, can see
+  re-rendering. Only a declared reference_state, compared against the engine's own screen, can see
   it.
 
 **Pen-coloured blanks after a line break — one representation difference, one real bug.**
@@ -547,7 +567,7 @@ different things came out of that.
   background-colour erase — which the front-end terminals do. The old acceptance could not
   see it. It rendered the paint with Alacritty, and Alacritty does not fill on this path, so
   the bleed had nothing to land on. It took an engine that does fill, graded against a
-  declared golden, to make it visible.
+  declared reference_state, to make it visible.
 
 **vt100 — an engine capability gap, closed at its owner.** The published `vt100` 0.16.2
 does not implement DEC Special Graphics: it ignores `ESC ( 0` and treats SI/SO as no-ops,
@@ -702,7 +722,7 @@ development loop and adds noise — so it would never have run on its own. What 
 is that the verdict is not delivered by `cargo test` at all.
 
 **A unit passes when `scripts/gate.sh` passes, and by no other means.** That script is the
-whole judgement in one command: the seven fixtures against the declared goldens, the unit
+whole judgement in one command: the seven fixtures against the declared reference_states, the unit
 tests, the real-daemon integration, and the performance budgets of §14.2 — every one of them
 blocking. Nothing in it is optional and nothing in it can be skipped by forgetting.
 
@@ -713,9 +733,9 @@ what anyone else scored. The fleet gate in this repo runs every unit's gate and 
 table — it collects verdicts, it does not make them. The old relative guard ("no unit below a
 quarter of the fastest in the same run") lived here and is deleted.
 
-The gate also enforces the one rule the goldens cannot enforce about themselves: **no engine's
-name may appear in a golden's reasoning** (`tests/goldens_cite_specs.rs`). A golden argued
-from what an engine does is a golden that has an engine for an author, however carefully the
+The gate also enforces the one rule the reference_states cannot enforce about themselves: **no engine's
+name may appear in a reference_state's reasoning** (`tests/reference_states_cite_specs.rs`). A reference_state argued
+from what an engine does is a reference_state that has an engine for an author, however carefully the
 prose is worded.
 
 Both gates were verified to fail when a budget is breached, not merely to pass when it is not.

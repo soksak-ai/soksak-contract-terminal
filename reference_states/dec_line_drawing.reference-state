@@ -33,10 +33,10 @@
 #   (Light 계열을 고른 것도 결정이다: DEC 의 세트는 굵기를 구분하지 않고 단일 굵기의 격자를 그린다 —
 #    Heavy/Double 계열은 DEC 이 구분하지 않은 것을 새로 만들어 내는 셈이다.)
 #
-# [따라서 골든이 선언하는 것]
+# [따라서 reference state이 선언하는 것]
 #   ESC ( 0 이후의 lqk / x / mqj 는 위 표대로 번역된 글리프로 그리드에 앉는다. SO 로 들어간 구간은
 #   ASCII 그대로다. ESC ( B 로 G0 을 ASCII 로 되돌린 뒤의 "DONE" 도 그대로다.
-# soksak-contract-terminal — 선언된 화면 상태(골든).
+# soksak-contract-terminal — 선언된 화면 상태(reference state).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
 rows 24

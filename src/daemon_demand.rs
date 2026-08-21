@@ -37,6 +37,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use serde_json::{json, Value};
+
 /// 홍수 크기 — 링(256 KiB)과 tee 버퍼(1 MB)를 여러 자릿수 넘겨야 "지속" 조건이 성립한다.
 const FLOOD_BYTES: usize = 64 * 1024 * 1024;
 
@@ -61,7 +63,9 @@ pub struct Arrival {
 /// 한 번의 측정은 커널·스케줄러 때문에 10% 남짓 흔들린다. 예산은 그 흔들림 위에 서면 안 되므로
 /// 중앙값을 쓴다(측정 조건 규정 — SPEC.md §14.1).
 pub fn detached_arrival_mb_s(bin: &Path) -> f64 {
-    let mut runs: Vec<f64> = (0..3).map(|_| measure(bin, false, None).arrival_mb_s).collect();
+    let mut runs: Vec<f64> = (0..3)
+        .map(|_| measure(bin, false, None).arrival_mb_s)
+        .collect();
     runs.sort_by(|a, b| a.partial_cmp(b).unwrap());
     runs[runs.len() / 2]
 }
@@ -81,23 +85,42 @@ pub fn ptyd_bin() -> Option<PathBuf> {
 pub fn measure(bin: &Path, attached: bool, consumer_mb_s: Option<f64>) -> Arrival {
     let home = fresh_home();
     let flood = flood_script(&home);
-    let _daemon = Daemon::start(bin, &home);
-    let token = read_token(&home);
+    let daemon = Daemon::start(bin, &home);
 
-    // §6.1 control — 세션을 띄운다. shell 은 홍수 스크립트 자신이다(입력을 보낼 필요가 없다).
-    let mut control = Ndjson::connect(&control_socket(&home), &token, None).expect("control");
-    let reply = control.request(&format!(
-        r#"{{"op":"createOrAttach","paneId":"p1","cols":80,"rows":24,"cwd":null,"shell":"{}","env":[["TERM","xterm-256color"]],"envRemove":[],"windowLabel":"w-demand"}}"#,
-        flood.display()
-    ));
-    let session = json_u64(&reply, "session").expect("session id");
-
-    // §6.2 tee — 홍수가 시작되기 전에 구독한다.
-    let mut tee = TeeSub::subscribe(&stream_socket(&home), &token, session);
+    // Prepare the observer before the child exists so its first byte is in the measured stream.
+    let mut control = Ndjson::connect(&daemon.socket, &daemon.token).expect("control");
+    let prepared = control.request(
+        "pty.prepareObserver",
+        json!({
+            "paneId": "p1",
+            "windowLabel": "w-demand",
+            "provider": "contract-demand",
+        }),
+    );
+    let observer_token = json_string(&prepared, "token").expect("observer token");
+    let mut observer = ObservationSub::prepared(&daemon.socket, &daemon.token, &observer_token);
+    let reply = control.request(
+        "pty.open",
+        json!({
+            "paneId": "p1",
+            "cols": 80,
+            "rows": 24,
+            "shell": flood,
+            "env": [["TERM", "xterm-256color"]],
+            "windowLabel": "w-demand",
+            "observerToken": observer_token,
+        }),
+    );
+    let session = reply["session"].as_u64().expect("session id");
+    observer.expect_opened(session);
 
     // 부착 모드면 프론트 터미널 자리를 채운다: 라이브 스트림을 읽고 ack 한다. 이 ack 이
     // 데몬의 읽기 루프를 늦추는 유일한 브레이크다.
-    let _front = if attached { Some(FrontEnd::attach(&home, &token, session)) } else { None };
+    let _front = if attached {
+        Some(FrontEnd::attach(&daemon.socket, &daemon.token, session))
+    } else {
+        None
+    };
 
     let t = Instant::now();
     let mut data_bytes = 0u64;
@@ -110,7 +133,7 @@ pub fn measure(bin: &Path, attached: bool, consumer_mb_s: Option<f64>) -> Arriva
     let mut carry: Vec<u8> = Vec::with_capacity(mark.len() * 2);
 
     loop {
-        match tee.next_frame() {
+        match observer.next_frame() {
             Some(Frame::Data(bytes)) => {
                 data_bytes += bytes.len() as u64;
                 if !tail_seen {
@@ -168,7 +191,10 @@ fn flood_script(home: &Path) -> PathBuf {
     let script = home.join("flood.sh");
     std::fs::write(
         &script,
-        format!("#!/bin/sh\ncat '{}'\nprintf '\\n{TAIL_MARK}\\n'\nsleep 1\n", payload.display()),
+        format!(
+            "#!/bin/sh\ncat '{}'\nprintf '\\n{TAIL_MARK}\\n'\nsleep 1\n",
+            payload.display()
+        ),
     )
     .expect("flood script");
     let mut perm = std::fs::metadata(&script).unwrap().permissions();
@@ -182,25 +208,42 @@ fn flood_script(home: &Path) -> PathBuf {
 struct Daemon {
     child: Child,
     home: PathBuf,
+    runtime_root: PathBuf,
+    socket: PathBuf,
+    token: String,
 }
 
 impl Daemon {
     fn start(bin: &Path, home: &Path) -> Self {
-        let child = Command::new(bin)
-            .env("SOKSAK_HOME", home)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+        let runtime_root = fresh_runtime();
+        let mut child = Command::new(bin)
+            .arg("-home")
+            .arg(home)
+            .arg("-runtime")
+            .arg(&runtime_root)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
             .spawn()
             .expect("spawn soksak-ptyd");
-        let ctrl = control_socket(home);
-        let start = Instant::now();
-        while start.elapsed() < Duration::from_secs(5) {
-            if UnixStream::connect(&ctrl).is_ok() && token_path(home).exists() {
-                return Daemon { child, home: home.to_path_buf() };
-            }
-            std::thread::sleep(Duration::from_millis(30));
+        let mut announcement = String::new();
+        BufReader::new(child.stdout.take().expect("PTY stdout"))
+            .read_line(&mut announcement)
+            .expect("PTY readiness read");
+        let announcement: Value = serde_json::from_str(&announcement)
+            .expect("PTY did not publish a readiness announcement");
+        assert_eq!(announcement["protocol"], 1);
+        let socket = PathBuf::from(announcement["socket"].as_str().expect("PTY socket"));
+        let token = announcement["token"]
+            .as_str()
+            .expect("PTY token")
+            .to_string();
+        Daemon {
+            child,
+            home: home.to_path_buf(),
+            runtime_root,
+            socket,
+            token,
         }
-        panic!("ptyd control socket did not come up");
     }
 }
 
@@ -209,6 +252,7 @@ impl Drop for Daemon {
         let _ = self.child.kill();
         let _ = self.child.wait();
         let _ = std::fs::remove_dir_all(&self.home);
+        let _ = std::fs::remove_dir_all(&self.runtime_root);
     }
 }
 
@@ -224,22 +268,11 @@ fn fresh_home() -> PathBuf {
     home
 }
 
-// 경로 규약(§4·§6.1) — 프로토콜 버전으로 키잉된다. 코어 크레이트를 링크하지 않으므로 규약을 옮긴다.
-const PTYD_PROTOCOL_VERSION: u32 = 1;
-fn run_dir(home: &Path) -> PathBuf {
-    home.join("run")
-}
-fn control_socket(home: &Path) -> PathBuf {
-    run_dir(home).join(format!("ptyd-p{PTYD_PROTOCOL_VERSION}.sock"))
-}
-fn stream_socket(home: &Path) -> PathBuf {
-    run_dir(home).join(format!("ptyd-p{PTYD_PROTOCOL_VERSION}-stream.sock"))
-}
-fn token_path(home: &Path) -> PathBuf {
-    run_dir(home).join(format!("ptyd-p{PTYD_PROTOCOL_VERSION}.token"))
-}
-fn read_token(home: &Path) -> String {
-    std::fs::read_to_string(token_path(home)).expect("token").trim().to_string()
+fn fresh_runtime() -> PathBuf {
+    let runtime_root = PathBuf::from(format!("/tmp/soksak-demand-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&runtime_root);
+    std::fs::create_dir_all(&runtime_root).expect("runtime root");
+    runtime_root
 }
 
 // ── §6.1 NDJSON control ──────────────────────────────────────────────────────
@@ -247,49 +280,57 @@ fn read_token(home: &Path) -> String {
 struct Ndjson {
     reader: BufReader<UnixStream>,
     writer: UnixStream,
+    sequence: u64,
 }
 
 impl Ndjson {
-    fn connect(path: &Path, token: &str, hello_extra: Option<&str>) -> Option<Self> {
+    fn connect(path: &Path, token: &str) -> Option<Self> {
         let s = UnixStream::connect(path).ok()?;
-        let mut me = Ndjson { reader: BufReader::new(s.try_clone().ok()?), writer: s };
-        let extra = hello_extra.unwrap_or("");
-        let hello = format!(
-            r#"{{"version":{PTYD_PROTOCOL_VERSION},"token":"{token}","clientId":"contract-demand"{extra}}}"#
-        );
-        me.send(&hello);
-        let ack = me.recv();
-        assert!(ack.contains("\"ok\":true"), "hello refused: {ack}");
+        let mut me = Ndjson {
+            reader: BufReader::new(s.try_clone().ok()?),
+            writer: s,
+            sequence: 0,
+        };
+        me.send(&json!({
+            "id": "hello",
+            "command": "system.hello",
+            "args": { "protocol": 1, "token": token },
+        }));
+        me.response();
         Some(me)
     }
 
-    fn send(&mut self, line: &str) {
-        writeln!(self.writer, "{line}").expect("write");
+    fn send(&mut self, value: &Value) {
+        serde_json::to_writer(&mut self.writer, value).expect("encode request");
+        self.writer.write_all(b"\n").expect("write newline");
         self.writer.flush().expect("flush");
     }
 
-    fn recv(&mut self) -> String {
+    fn recv(&mut self) -> Value {
         let mut line = String::new();
         self.reader.read_line(&mut line).expect("read");
-        line
+        serde_json::from_str(&line).expect("decode response")
     }
 
-    fn request(&mut self, body: &str) -> String {
-        self.send(body);
-        let r = self.recv();
-        assert!(r.contains("\"ok\":true"), "request failed: {body} -> {r}");
-        r
+    fn response(&mut self) -> Value {
+        let response = self.recv();
+        assert_eq!(response["ok"], true, "request failed: {response}");
+        response["result"]["data"].clone()
+    }
+
+    fn request(&mut self, command: &str, request: Value) -> Value {
+        self.sequence += 1;
+        self.send(&json!({
+            "id": format!("demand-{}", self.sequence),
+            "command": command,
+            "args": { "request": request },
+        }));
+        self.response()
     }
 }
 
-/// 답에서 숫자 하나를 꺼낸다. JSON 라이브러리를 들이지 않는다 — 이 하니스가 읽는 숫자는 둘뿐이고
-/// (session, startSeq), 둘 다 답의 유일한 그 이름이다.
-fn json_u64(json: &str, key: &str) -> Option<u64> {
-    let pat = format!("\"{key}\":");
-    let i = json.find(&pat)? + pat.len();
-    let rest = &json[i..];
-    let end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
-    rest[..end].parse().ok()
+fn json_string(value: &Value, key: &str) -> Option<String> {
+    value.get(key).and_then(Value::as_str).map(String::from)
 }
 
 // ── §6.2 tee 구독 ────────────────────────────────────────────────────────────
@@ -299,30 +340,67 @@ enum Frame {
     Gap(u64, u64),
 }
 
-struct TeeSub {
+struct ObservationSub {
     stream: UnixStream,
 }
 
-impl TeeSub {
-    fn subscribe(path: &Path, token: &str, session: u64) -> Self {
-        let extra = format!(r#","session":{session},"subscribe":true"#);
-        let n = Ndjson::connect(path, token, Some(&extra)).expect("tee subscribe");
-        TeeSub { stream: n.reader.into_inner() }
+impl ObservationSub {
+    fn prepared(socket: &Path, token: &str, observer_token: &str) -> Self {
+        let mut connection = Ndjson::connect(socket, token).expect("observer");
+        connection.request("pty.observePrepared", json!({ "token": observer_token }));
+        Self {
+            stream: connection.reader.into_inner(),
+        }
+    }
+
+    fn expect_opened(&mut self, session: u64) {
+        let mut header = [0; 5];
+        self.stream
+            .read_exact(&mut header)
+            .expect("opened frame header");
+        assert_eq!(header[0], 4, "first observation must be opened");
+        let length = u32::from_be_bytes(header[1..5].try_into().unwrap()) as usize;
+        let mut payload = vec![0; length];
+        self.stream
+            .read_exact(&mut payload)
+            .expect("opened frame payload");
+        assert_eq!(
+            u64::from_be_bytes(payload[0..8].try_into().unwrap()),
+            session
+        );
     }
 
     fn next_frame(&mut self) -> Option<Frame> {
-        let mut hdr = [0u8; 5];
-        self.stream.read_exact(&mut hdr).ok()?;
-        let len = u32::from_be_bytes([hdr[1], hdr[2], hdr[3], hdr[4]]) as usize;
-        let mut payload = vec![0u8; len];
+        let mut header = [0u8; 5];
+        self.stream.read_exact(&mut header).ok()?;
+        let length = u32::from_be_bytes(header[1..5].try_into().ok()?) as usize;
+        let mut payload = vec![0u8; length];
         self.stream.read_exact(&mut payload).ok()?;
-        match hdr[0] {
-            0 => Some(Frame::Data(payload)),
-            1 => {
-                let s = String::from_utf8_lossy(&payload).to_string();
-                Some(Frame::Gap(json_u64(&s, "fromSeq")?, json_u64(&s, "toSeq")?))
-            }
-            k => panic!("모르는 tee 프레임 종류: {k}"),
+        match header[0] {
+            0 if payload.len() >= 24 => Some(Frame::Data(payload.split_off(24))),
+            1 if payload.len() == 32 => Some(Frame::Gap(
+                u64::from_be_bytes(payload[16..24].try_into().ok()?),
+                u64::from_be_bytes(payload[24..32].try_into().ok()?),
+            )),
+            2 => self.next_frame(),
+            3 => None,
+            kind => panic!("unknown observation frame kind {kind}"),
+        }
+    }
+}
+
+struct AttachedStream {
+    stream: UnixStream,
+    start_sequence: u64,
+}
+
+impl AttachedStream {
+    fn connect(socket: &Path, token: &str, session: u64) -> Self {
+        let mut connection = Ndjson::connect(socket, token).expect("attach");
+        let data = connection.request("pty.attach", json!({ "session": session, "fromSeq": 0 }));
+        Self {
+            stream: connection.reader.into_inner(),
+            start_sequence: data["startSeq"].as_u64().expect("attach startSeq"),
         }
     }
 }
@@ -339,11 +417,11 @@ struct FrontEnd {
 }
 
 impl FrontEnd {
-    fn attach(home: &Path, token: &str, session: u64) -> Self {
-        let extra = format!(r#","session":{session},"subscribe":false,"fromSeq":0"#);
-        let n = Ndjson::connect(&stream_socket(home), token, Some(&extra)).expect("attach");
-        let mut live = n.reader.into_inner();
-        let control = Ndjson::connect(&control_socket(home), token, None).expect("ack control");
+    fn attach(socket: &Path, token: &str, session: u64) -> Self {
+        let attached = AttachedStream::connect(socket, token, session);
+        let mut live = attached.stream;
+        let mut through_sequence = attached.start_sequence;
+        let control = Ndjson::connect(socket, token).expect("ack control");
 
         // ack 는 **비동기로** 보낸다. 응답을 기다리면 교착한다: 데몬의 읽기 루프는 세션 뮤텍스를
         // 쥔 채 attach 소켓에 write_all 하고, 그 write 가 뚫리려면 이 스레드가 계속 읽어야 한다.
@@ -366,16 +444,28 @@ impl FrontEnd {
                 match live.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        let _ = writeln!(
-                            sender,
-                            r#"{{"op":"ack","session":{session},"bytes":{n}}}"#
-                        );
+                        through_sequence += n as u64;
+                        let request = json!({
+                            "id": format!("ack-{through_sequence}"),
+                            "command": "pty.ack",
+                            "args": {
+                                "request": {
+                                    "session": session,
+                                    "throughSeq": through_sequence,
+                                }
+                            }
+                        });
+                        let _ = serde_json::to_writer(&mut sender, &request);
+                        let _ = sender.write_all(b"\n");
                         let _ = sender.flush();
                     }
                 }
             }
         });
-        FrontEnd { _handle: handle, stop }
+        FrontEnd {
+            _handle: handle,
+            stop,
+        }
     }
 }
 

@@ -21,9 +21,9 @@
 #   (c)는 셀 모델이 표현할 수 없다. 그래서 (a)다. 넘어간 문자를 위해 비워 둔 79번 칸은 공백으로 남는다.
 #   자동 줄바꿈이 꺼져 있을 때(DECAWM reset)의 처리는 이 코퍼스가 시험하지 않으므로 정하지 않는다.
 #
-# [따라서 골든이 선언하는 것]
+# [따라서 reference state이 선언하는 것]
 #   79칸이 'a' 로 찬 행은 79칸에서 끝나고(마지막 칸은 빈 예약칸), '가' 는 다음 행의 첫 칸에서 시작한다.
-# soksak-contract-terminal — 선언된 화면 상태(골든).
+# soksak-contract-terminal — 선언된 화면 상태(reference state).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
 rows 24

@@ -22,7 +22,10 @@ fn detached_arrival() {
     println!("\n── 분리(detached) — 앱이 없다. 미러가 존재하는 이유가 이 모드다.");
     show(&dd::measure(&bin(), false, None), "구독자=최대속도");
     for (unit, rate) in [("wezterm", 70.0), ("ghostty", 95.0), ("alacritty", 154.0)] {
-        show(&dd::measure(&bin(), false, Some(rate)), &format!("{unit} @{rate:.0}MB/s"));
+        show(
+            &dd::measure(&bin(), false, Some(rate)),
+            &format!("{unit} @{rate:.0}MB/s"),
+        );
     }
 }
 

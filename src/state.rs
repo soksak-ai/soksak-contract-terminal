@@ -108,7 +108,7 @@ impl Row {
     }
 }
 
-/// 복원 대상 private mode 집합 — rehydrate 가 재현해야 하는 전부. 순서는 골든 직렬화가 쓰는
+/// 복원 대상 private mode 집합 — rehydrate 가 재현해야 하는 전부. 순서는 reference state 직렬화가 쓰는
 /// 순서이기도 하다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Modes {
@@ -128,7 +128,7 @@ pub struct Modes {
 }
 
 impl Modes {
-    /// 골든 직렬화 순서와 같은 13칸 배열.
+    /// reference state 직렬화 순서와 같은 13칸 배열.
     pub fn to_flags(self) -> [bool; 13] {
         [
             self.bracketed_paste,

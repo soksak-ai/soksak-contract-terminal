@@ -21,7 +21,23 @@ fn bench_table() {
             Report::from_line(line.trim()).expect("parse")
         })
         .collect();
-    assert!(!reports.is_empty(), "no .bench files in {}", dir.display());
+    assert_eq!(
+        reports.len(),
+        6,
+        "terminal fleet needs six .bench reports in {}",
+        dir.display()
+    );
+    let units: std::collections::BTreeSet<_> =
+        reports.iter().map(|report| report.unit.as_str()).collect();
+    let expected = std::collections::BTreeSet::from([
+        "alacritty",
+        "ghostty",
+        "kitty",
+        "shitty",
+        "vt100",
+        "wezterm",
+    ]);
+    assert_eq!(units, expected, "terminal performance fleet is incomplete");
     reports.sort_by(|a, b| a.unit.cmp(&b.unit));
     println!("\n{}", table(&reports));
 }

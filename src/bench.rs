@@ -84,7 +84,9 @@ fn live_bytes() -> usize {
 /// 지어내지 않는다.
 fn rss_bytes() -> usize {
     let pid = std::process::id().to_string();
-    let out = std::process::Command::new("ps").args(["-o", "rss=", "-p", &pid]).output();
+    let out = std::process::Command::new("ps")
+        .args(["-o", "rss=", "-p", &pid])
+        .output();
     match out {
         Ok(o) => String::from_utf8_lossy(&o.stdout)
             .trim()
@@ -333,7 +335,15 @@ pub fn table(reports: &[Report]) -> String {
     ));
     out.push_str(&format!(
         "{:<12} {:>11} {:>7} {:>11} {:>6} {:>9} {:>9} {:>9} {:>8}\n",
-        "unit", "feed MB/s", "vs dmd", "lost (MB)", "tail", "rehyd ms", "cold ms", "paint KB", "rss MB"
+        "unit",
+        "feed MB/s",
+        "vs dmd",
+        "lost (MB)",
+        "tail",
+        "rehyd ms",
+        "cold ms",
+        "paint KB",
+        "rss MB"
     ));
     out.push_str(&"-".repeat(96));
     out.push('\n');
@@ -405,7 +415,8 @@ pub fn assert_within_budget(r: &Report) {
     // 속도로 묶은 tee 구독자를 실 데몬 폭주에 세워 보고, 데몬이 정말로 떨구는지를 본다.
     // 떨궜다면 그것이 복원 화면의 구멍이고, 그 구멍이 불합격의 사유다(SPEC.md §14.3).
     assert_eq!(
-        r.gap_bytes, 0,
+        r.gap_bytes,
+        0,
         "{u}: 이 미러의 속도({:.1} MB/s)로는 데몬의 tee 를 따라가지 못한다 — 앱이 닫힌 채 세션이 \
          폭주하는 동안 데몬이 **{:.1} MB 를 떨궜다**. 복원 화면에 그만큼의 구멍이 남는다. \
          추론이 아니라 이 실행에서 실 데몬으로 관찰한 손실이다.",
@@ -453,4 +464,3 @@ pub fn assert_within_budget(r: &Report) {
         r.rss_bytes
     );
 }
-

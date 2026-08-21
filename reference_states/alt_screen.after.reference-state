@@ -26,7 +26,7 @@
 #   DECRC, xterm." 프라임 화면과 저장해 둔 커서가 돌아온다. 대체 화면의 내용은 복구 대상이 아니다 —
 #   1049 가 진입할 때 그 버퍼를 지우고 시작했듯(위 인용), 나올 때도 그 버퍼는 버려진다.
 #   그래서 alt 진입 전의 프라임 화면·스크롤백(SCROLLBACK-MARK)이 그대로 돌아오고 BACK-MARK 가 잇는다.
-# soksak-contract-terminal — 선언된 화면 상태(골든).
+# soksak-contract-terminal — 선언된 화면 상태(reference state).
 # 포맷: SPEC.md §12. 정규화 규칙(무엇을 같다고 보는가): SPEC.md §11.
 cols 80
 rows 24
