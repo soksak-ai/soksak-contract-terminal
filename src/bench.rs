@@ -1,4 +1,4 @@
-//! 벤치 — 같은 코퍼스, 같은 면, 전 엔진 유닛 공통. 계약이 소유한다(유닛에 벤치 사본 없음).
+//! Shared terminal sidecar benchmark. The contract owns the corpus and measurements.
 //!
 //! 프레임워크를 쓰지 않는다: 반복하고, 중앙값을 잡고, 표로 찍는다. 그 이상은 이 계약이 답해야
 //! 하는 질문("어느 엔진이 이 일을 얼마에 하는가")에 보태는 것이 없다.
@@ -158,7 +158,7 @@ pub fn corpus_shape() -> String {
 
 // ── 측정 ─────────────────────────────────────────────────────────────────────
 
-/// 한 유닛의 측정 결과.
+/// Measurements for one terminal sidecar.
 #[derive(Debug, Clone)]
 pub struct Report {
     pub sidecar: String,
@@ -177,7 +177,7 @@ pub struct Report {
     /// **수요**(MB/s) — 분리 모드에서 **실 데몬**이 tee 로 배달하는 지속 속도. 엔진과 무관하게
     /// 같은 실행에서 직접 잰다([`crate::daemon_demand`]). feed 예산이 곧 이 값이다.
     pub demand_mb_s: f64,
-    /// **실제로 잃은 바이트** — 이 유닛의 feed 속도로 묶인 tee 구독자를 실 데몬 폭주에 세웠을 때
+    /// Bytes dropped when a subscriber is limited to this sidecar's measured feed rate.
     /// 데몬이 떨군 양. 0 이 아니면 이 미러는 복원해야 할 화면의 일부를 못 받는다.
     pub gap_bytes: u64,
     /// 홍수가 끝난 뒤 셸이 찍은 마지막 마커가 그 구독자에게 닿았는가. 못 닿으면 복원 화면이
@@ -190,7 +190,7 @@ fn median(mut v: Vec<f64>) -> f64 {
     v[v.len() / 2]
 }
 
-/// 반복 횟수. 중앙값이 안정되기에 충분하고, 한 유닛이 몇 초 안에 끝난다.
+/// Repeat count for a stable median while keeping each sidecar run bounded.
 const REPEATS: usize = 5;
 
 /// 네 축을 잰다. 같은 머신·같은 빌드(release)·다른 부하 없는 상태를 전제한다.
@@ -256,12 +256,12 @@ pub fn run<M: MirrorUnderTest>(sidecar: &str) -> Report {
     // 없다** — 조용히 넘어가지 않고 큰 소리로 죽는다.
     let bin = crate::daemon_demand::ptyd_bin().expect(
         "SOKSAK_PTYD_BIN 이 없다. 수요는 실 데몬이 tee 로 배달하는 속도이고, 그것을 모르면 feed \
-         예산을 판정할 수 없다(SPEC.md §14.1). 유닛 게이트가 코어에서 데몬을 빌드해 주입한다.",
+         예산을 판정할 수 없다(SPEC.md §14.1). sidecar gate가 코어에서 데몬을 빌드해 주입한다.",
     );
     let demand_mb_s = crate::daemon_demand::detached_arrival_mb_s(&bin);
 
     // **손실 실측** — 예산이 비율 비교로 끝나면, "이 미러는 바이트를 잃는다"는 말은 추론이지
-    // 관찰이 아니다. 그래서 이 유닛의 **실제 feed 속도**로 tee 구독자를 묶고 같은 실 데몬 폭주에
+    // 관찰이 아니다. 그래서 이 sidecar의 **실제 feed 속도**로 tee 구독자를 묶고 같은 실 데몬 폭주에
     // 세운다. 데몬이 이 속도의 구독자에게서 떨구는 것이 있으면, 그것이 이 미러가 잃을 바이트다.
     let loss = crate::daemon_demand::measure(&bin, false, Some(median(feed.clone())));
 
@@ -280,7 +280,7 @@ pub fn run<M: MirrorUnderTest>(sidecar: &str) -> Report {
     }
 }
 
-// ── 보고 — versioned JSON(유닛이 쓰고, 표가 읽는다) + 표 ───────────────────────
+// Versioned JSON written by each sidecar and read by the comparison table.
 
 impl Report {
     pub fn to_json(&self) -> String {
@@ -297,26 +297,55 @@ impl Report {
             "demandMbS": self.demand_mb_s,
             "gapBytes": self.gap_bytes,
             "tailSeen": self.tail_seen,
-        }).to_string()
+        })
+        .to_string()
     }
 
     pub fn from_json(source: &str) -> Result<Report, String> {
-        let value: serde_json::Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
-        let object = value.as_object().ok_or("benchmark report must be an object")?;
+        let value: serde_json::Value =
+            serde_json::from_str(source).map_err(|error| error.to_string())?;
+        let object = value
+            .as_object()
+            .ok_or("benchmark report must be an object")?;
         let expected = [
-            "spec", "sidecar", "feedMbS", "rehydrateMs", "paintBytes", "coldMs",
-            "coldBytes", "liveBytes", "rssBytes", "demandMbS", "gapBytes", "tailSeen",
+            "spec",
+            "sidecar",
+            "feedMbS",
+            "rehydrateMs",
+            "paintBytes",
+            "coldMs",
+            "coldBytes",
+            "liveBytes",
+            "rssBytes",
+            "demandMbS",
+            "gapBytes",
+            "tailSeen",
         ];
-        if object.len() != expected.len() || expected.iter().any(|field| !object.contains_key(*field)) {
+        if object.len() != expected.len()
+            || expected.iter().any(|field| !object.contains_key(*field))
+        {
             return Err("benchmark report fields do not match 0.0.1".into());
         }
-        let text = |field: &str| object[field].as_str().ok_or_else(|| format!("{field} must be a string"));
-        let num = |field: &str| object[field].as_f64().ok_or_else(|| format!("{field} must be a number"));
-        let count = |field: &str| object[field].as_u64()
-            .and_then(|value| usize::try_from(value).ok())
-            .ok_or_else(|| format!("{field} must be a non-negative integer"));
+        let text = |field: &str| {
+            object[field]
+                .as_str()
+                .ok_or_else(|| format!("{field} must be a string"))
+        };
+        let num = |field: &str| {
+            object[field]
+                .as_f64()
+                .ok_or_else(|| format!("{field} must be a number"))
+        };
+        let count = |field: &str| {
+            object[field]
+                .as_u64()
+                .and_then(|value| usize::try_from(value).ok())
+                .ok_or_else(|| format!("{field} must be a non-negative integer"))
+        };
         if text("spec")? != BENCHMARK_REPORT_SPEC {
-            return Err("benchmark report spec must be soksak-spec-terminal-benchmark@0.0.1".into());
+            return Err(
+                "benchmark report spec must be soksak-spec-terminal-benchmark@0.0.1".into(),
+            );
         }
         Ok(Report {
             sidecar: text("sidecar")?.to_string(),
@@ -328,8 +357,12 @@ impl Report {
             live_bytes: count("liveBytes")?,
             rss_bytes: count("rssBytes")?,
             demand_mb_s: num("demandMbS")?,
-            gap_bytes: object["gapBytes"].as_u64().ok_or("gapBytes must be a non-negative integer")?,
-            tail_seen: object["tailSeen"].as_bool().ok_or("tailSeen must be a boolean")?,
+            gap_bytes: object["gapBytes"]
+                .as_u64()
+                .ok_or("gapBytes must be a non-negative integer")?,
+            tail_seen: object["tailSeen"]
+                .as_bool()
+                .ok_or("tailSeen must be a boolean")?,
         })
     }
 }
@@ -340,7 +373,7 @@ pub fn table(reports: &[Report]) -> String {
     let mut out = String::new();
     out.push_str(&format!("corpus: {}\n", corpus_shape()));
     out.push_str(&format!("repeats: {REPEATS} (median), release build\n\n"));
-    // 수요는 유닛마다 따로 잰다(같은 기계·같은 관이므로 값은 서로 가깝다). 표는 중앙값을 쓴다 —
+    // 수요는 sidecar마다 따로 잰다(같은 기계·같은 관이므로 값은 서로 가깝다). 표는 중앙값을 쓴다 —
     // 이 표에 등수는 없다. 순위표로 읽으면 잘못 읽는 것이다(SPEC.md §14).
     let floor = demand_floor(reports);
     out.push_str(&format!(
@@ -376,13 +409,13 @@ pub fn table(reports: &[Report]) -> String {
         ));
     }
     out.push_str(
-        "\nlost = 이 유닛의 feed 속도로 묶인 tee 구독자에게서 실 데몬이 떨군 바이트(SPEC.md §14.3).\n\
+        "\nlost = 이 sidecar의 feed 속도로 묶인 tee 구독자에게서 실 데몬이 떨군 바이트(SPEC.md §14.3).\n\
          판정은 이 열이 한다 — feed vs 수요는 그 손실이 왜 나는지의 설명이다.\n",
     );
     out
 }
 
-/// 이 실행의 feed 하한 — 유닛들이 각자 잰 수요의 중앙값 × 비율. 유닛의 **성적은 전혀 보지 않는다**
+/// Feed floor for this run: median sidecar demand multiplied by the contract ratio.
 /// (그것이 후보가 기준을 정하는 길이다). 보는 것은 관의 속도뿐이다.
 pub fn demand_floor(reports: &[Report]) -> f64 {
     let mut d: Vec<f64> = reports.iter().map(|r| r.demand_mb_s).collect();
@@ -418,13 +451,13 @@ pub const BUDGET_PAINT_BYTES: usize = 2 * 1024 * 1024;
 /// 담겠다는 약속이 미러 하나당 32 MB 다(SPEC.md §14.2 S6).
 pub const BUDGET_RSS_BYTES: usize = 32 * 1024 * 1024;
 
-/// 한 유닛의 예산. 어기면 패닉한다 — 벤치가 곧 게이트다.
+/// Enforces the budget for one terminal sidecar.
 pub fn assert_within_budget(r: &Report) {
     let sidecar = &r.sidecar;
 
     // ── 판정의 본체: **관찰된 손실**. 비율 비교가 아니다.
     //
-    // "이 미러는 바이트를 잃는다"는 말은 추론으로 하면 안 된다. 그래서 이 유닛의 실제 feed
+    // "이 미러는 바이트를 잃는다"는 말은 추론으로 하면 안 된다. 그래서 이 sidecar의 실제 feed
     // 속도로 묶은 tee 구독자를 실 데몬 폭주에 세워 보고, 데몬이 정말로 떨구는지를 본다.
     // 떨궜다면 그것이 복원 화면의 구멍이고, 그 구멍이 불합격의 사유다(SPEC.md §14.3).
     assert_eq!(
