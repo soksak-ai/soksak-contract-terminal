@@ -22,7 +22,7 @@ pub mod daemon_demand;
 pub mod reference_state;
 pub mod state;
 
-pub use corpus::{Fixture, COLS, ROWS};
+pub use corpus::{COLS, Fixture, ROWS};
 pub use state::{Attrs, Cell, Color, Modes, Row, ScreenState};
 
 /// 피시험 미러의 면 — 합격시험이 유닛을 만지는 유일한 통로. 유닛의 엔진·내부 타입은 이 면 뒤에

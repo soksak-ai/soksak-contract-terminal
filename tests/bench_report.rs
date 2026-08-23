@@ -1,4 +1,4 @@
-use soksak_contract_terminal::bench::{Report, BENCHMARK_REPORT_SPEC};
+use soksak_contract_terminal::bench::{BENCHMARK_REPORT_SPEC, Report};
 
 #[test]
 fn benchmark_report_is_versioned_json() {

@@ -4,7 +4,7 @@
 // This table does not judge. Each sidecar gate enforces the absolute budget independently.
 // The removed relative guard compared candidates and let candidates influence the standard.
 // 기준을 후보에게 넘긴다(SPEC.md §14.2). 표는 읽으라고 있는 것이지 채점하라고 있는 것이 아니다.
-use soksak_contract_terminal::bench::{table, Report};
+use soksak_contract_terminal::bench::{Report, table};
 
 #[test]
 #[ignore]
@@ -14,7 +14,7 @@ fn bench_table() {
     let mut reports: Vec<Report> = std::fs::read_dir(&dir)
         .expect("bench dir")
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |x| x == "json"))
+        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
         .map(|e| {
             let line = std::fs::read_to_string(e.path()).expect("read");
             Report::from_json(line.trim()).expect("parse")

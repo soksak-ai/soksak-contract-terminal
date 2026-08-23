@@ -24,8 +24,8 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
-use crate::corpus::{Fixture, COLS, ROWS};
 use crate::MirrorUnderTest;
+use crate::corpus::{COLS, Fixture, ROWS};
 
 pub const BENCHMARK_REPORT_SPEC: &str = "soksak-spec-terminal-benchmark@0.0.1";
 
@@ -56,25 +56,31 @@ impl Default for CountingAlloc {
 
 unsafe impl GlobalAlloc for CountingAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let p = System.alloc(layout);
-        if !p.is_null() {
-            ALLOCATED.fetch_add(layout.size(), Ordering::Relaxed);
+        unsafe {
+            let p = System.alloc(layout);
+            if !p.is_null() {
+                ALLOCATED.fetch_add(layout.size(), Ordering::Relaxed);
+            }
+            p
         }
-        p
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        System.dealloc(ptr, layout);
-        ALLOCATED.fetch_sub(layout.size(), Ordering::Relaxed);
+        unsafe {
+            System.dealloc(ptr, layout);
+            ALLOCATED.fetch_sub(layout.size(), Ordering::Relaxed);
+        }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        let p = System.realloc(ptr, layout, new_size);
-        if !p.is_null() {
-            ALLOCATED.fetch_add(new_size, Ordering::Relaxed);
-            ALLOCATED.fetch_sub(layout.size(), Ordering::Relaxed);
+        unsafe {
+            let p = System.realloc(ptr, layout, new_size);
+            if !p.is_null() {
+                ALLOCATED.fetch_add(new_size, Ordering::Relaxed);
+                ALLOCATED.fetch_sub(layout.size(), Ordering::Relaxed);
+            }
+            p
         }
-        p
     }
 }
 

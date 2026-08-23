@@ -96,7 +96,7 @@ impl Row {
     /// 칸마다 [`Cell::canonical`] 을 적용하고 꼬리의 빈 칸을 잘라 정규화한다.
     pub fn normalized(cells: Vec<Cell>) -> Self {
         let mut cells: Vec<Cell> = cells.into_iter().map(Cell::canonical).collect();
-        while cells.last().map_or(false, |c| c.is_blank_default()) {
+        while cells.last().is_some_and(|c| c.is_blank_default()) {
             cells.pop();
         }
         Row(cells)

@@ -41,10 +41,10 @@ fn public_contract_uses_reference_state_vocabulary() {
             violations.push(relative.display().to_string());
             continue;
         }
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            if text.to_lowercase().contains(LEGACY_TERM) {
-                violations.push(relative.display().to_string());
-            }
+        if let Ok(text) = std::fs::read_to_string(&path)
+            && text.to_lowercase().contains(LEGACY_TERM)
+        {
+            violations.push(relative.display().to_string());
         }
     }
     violations.sort();

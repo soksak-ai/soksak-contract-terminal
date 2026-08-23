@@ -112,7 +112,7 @@ pub fn heavy_row(i: usize) -> Vec<u8> {
 fn pad_line(len: usize) -> Vec<u8> {
     assert!(len >= 7, "pad too small: {len}");
     let mut v = b"PAD:".to_vec();
-    v.extend(std::iter::repeat(b'x').take(len - 6));
+    v.extend(std::iter::repeat_n(b'x', len - 6));
     v.extend_from_slice(b"\r\n");
     v
 }

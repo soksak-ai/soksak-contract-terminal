@@ -37,7 +37,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// 홍수 크기 — 링(256 KiB)과 tee 버퍼(1 MB)를 여러 자릿수 넘겨야 "지속" 조건이 성립한다.
 const FLOOD_BYTES: usize = 64 * 1024 * 1024;
