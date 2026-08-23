@@ -2,6 +2,12 @@ use std::path::{Path, PathBuf};
 
 const LEGACY_TERM: &str = "golden";
 
+#[test]
+fn rust_package_uses_edition_2024() {
+    let manifest = std::fs::read_to_string("Cargo.toml").expect("read Cargo.toml");
+    assert!(manifest.lines().any(|line| line == r#"edition = "2024""#));
+}
+
 fn public_files(root: &Path) -> Vec<PathBuf> {
     let mut pending = vec![root.to_path_buf()];
     let mut files = Vec::new();
