@@ -11,9 +11,6 @@ fn benchmark_report_is_versioned_json() {
         cold_bytes: 2048,
         live_bytes: 1024,
         rss_bytes: 8192,
-        demand_mb_s: 75.0,
-        gap_bytes: 0,
-        tail_seen: true,
     };
     let json = report.to_json();
     assert!(json.contains(BENCHMARK_REPORT_SPEC));
@@ -22,8 +19,10 @@ fn benchmark_report_is_versioned_json() {
     assert!(!json.contains("\"unit\""));
     assert_eq!(parsed.sidecar, "soksak-sidecar-terminal-vt100");
     assert_eq!(parsed.feed_mb_s, 120.5);
-    assert_eq!(parsed.gap_bytes, 0);
-    assert!(parsed.tail_seen);
+    assert_eq!(BENCHMARK_REPORT_SPEC, "soksak-spec-terminal-benchmark@0.0.2");
+    for composition_field in ["demandMbS", "gapBytes", "tailSeen"] {
+        assert!(!json.contains(composition_field));
+    }
 }
 
 #[test]
