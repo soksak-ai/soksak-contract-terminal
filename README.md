@@ -101,6 +101,18 @@ was made faster (68 → 102 MB/s), and it now drops nothing. SPEC.md §14.3.
 
 ## The gate
 
+The contract repository verifies only its own declared states, report schema, vocabulary, and
+assertion implementation:
+
+```sh
+make verify
+```
+
+The exact Rust toolchain is owned by `rust-toolchain.toml`. This repository does not discover or
+execute provider repositories. Each provider runs the shared contract cases against its own
+implementation from its own `make verify TARGET=<native-target>` gate; the installed-system
+repository owns the real multi-provider composition.
+
 **A unit passes its owner boundary when its repository `make verify TARGET=<native-target>` passes.**
 That command keeps the seven reference-state fixtures, unit tests, and owner performance budgets
 blocking. The benchmark is `#[ignore]`d in the ordinary test run — it would
