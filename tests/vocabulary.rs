@@ -10,11 +10,19 @@ fn rust_package_uses_edition_2024() {
 
 #[test]
 fn verification_uses_exact_tools() {
+    let toolchain = std::fs::read_to_string("rust-toolchain.toml").expect("read Rust owner");
     let workflow =
         std::fs::read_to_string(".github/workflows/test.yml").expect("read verification workflow");
+    assert!(
+        toolchain
+            .lines()
+            .any(|line| line == r#"channel = "1.96.0""#)
+    );
     assert!(workflow.contains("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"));
     assert!(workflow.contains("dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30"));
-    assert!(workflow.contains("toolchain: \"1.96.0\""));
+    assert!(workflow.contains("rust-toolchain.toml"));
+    assert!(workflow.contains("toolchain: ${{ steps.rust-toolchain.outputs.channel }}"));
+    assert!(!workflow.contains("toolchain: \"1.96.0\""));
 }
 
 fn public_files(root: &Path) -> Vec<PathBuf> {
