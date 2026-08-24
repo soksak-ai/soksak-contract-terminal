@@ -101,17 +101,16 @@ was made faster (68 → 102 MB/s), and it now drops nothing. SPEC.md §14.3.
 
 ## The gate
 
-**A unit passes when `scripts/gate.sh` passes, and by no other means.** One command, everything
-blocking: the seven fixtures against the reference_states, the unit tests, the real-daemon integration,
-and the performance budgets. The benchmark is `#[ignore]`d in the ordinary test run — it would
+**A unit passes its owner boundary when its repository `make verify TARGET=<native-target>` passes.**
+That command keeps the seven reference-state fixtures, unit tests, and owner performance budgets
+blocking. The benchmark is `#[ignore]`d in the ordinary test run — it would
 slow the development loop — so a budget that only ran when someone remembered to ask for it
 would have been a comment, not a budget. The gate is what makes it binding.
 
-`scripts/gate.sh` **in this repo** runs every unit's gate and collects the results into one
-table. It does not judge: a unit's verdict is complete on its own, because the unit gate
-measures the machine's demand itself and compares the unit to *that*. The old relative guard —
-no unit below a quarter of the fastest in the same run — is deleted. A judgement that needs the
-other candidates in the room is a judgement the candidates have a hand in.
+The contract table compares owner reports only. The installed terminal system-test repository owns
+real PTY demand, gap, and tail-marker evidence because it owns the multi-component composition.
+Provider repositories do not build or execute the PTY implementation. The old relative guard — no
+unit below a quarter of the fastest in the same run — remains deleted.
 
 ## Performance comes from demand, not from the candidates
 
@@ -126,11 +125,12 @@ own gate measures 3.3–4.6 MB/s end to end). With the app **closed** — the mo
 for — nothing paces it at all, and a mirror slower than the daemon's tee delivery simply loses
 bytes.
 
-So the floor is the daemon's detached tee delivery rate, measured on the machine, against a
-**real** `soksak-ptyd` (`src/daemon_demand.rs`). No coefficient: the mirror must be at least as
-fast as the thing feeding it. A composition gate includes daemon synchronization, frame queuing,
-rendering, IPC, and acknowledgement. Estimates that omitted those costs overstated throughput by
-2.4× and about 25×, so only the installed composition path is acceptance evidence.
+The provider owner floor is a fixed **80 MB/s**, rounded up from the independently measured
+reference PTY demand rather than read from provider candidates. Terminal system tests separately
+measure the **real installed PTY** against each installed provider and require zero gap plus final
+marker delivery. A composition gate must include daemon synchronization, frame queuing, rendering,
+IPC, and acknowledgement. Estimates that omitted those costs overstated throughput by 2.4× and
+about 25×, so only the installed composition path is acceptance evidence.
 
 ## No default unit
 

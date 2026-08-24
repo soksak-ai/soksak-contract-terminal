@@ -586,7 +586,7 @@ window the moment pruning fires — the mirror kept 588 rows where the corpus de
 **avt, shpool_vt100 — rejected on the record.** Neither maintains the scrollback and
 private-mode state the contract restores, so neither reaches the fixtures.
 
-## 14. Performance — derived from demand, never from the candidates
+## 14. Performance — owner cost and installed demand are separate gates
 
 The budgets used to say a terminal's real output "arrives at a few megabytes per second at
 its very loudest", and set the floor at 50 MB/s. Both numbers were unsourced. Worse, the
@@ -608,7 +608,7 @@ The requirement is one sentence. Turning it into a number takes a fact, and the 
 about the mirror at all — it is about **what paces the thing that feeds the mirror**. §14.1
 measures it, in both of the modes the system actually runs in.
 
-### 14.1 What actually feeds the mirror — measured, in both modes
+### 14.1 What actually feeds the mirror — measured by the composition owner
 
 The requirement resolves to a number only once you know **what paces the daemon's read loop**.
 The daemon reads the pty, appends to the ring, copies into each tee subscriber's buffer, and
@@ -634,10 +634,11 @@ The producer runs as fast as the daemon can drain the pty, and a mirror that can
 loses bytes. So the demand in this mode is simply **the rate at which the daemon delivers to
 the tee**, and it must be measured against the real daemon — not modelled.
 
-`src/daemon_demand.rs` does exactly that: it starts a real `soksak-ptyd`, spawns a session that
-floods 64 MB through a pty, subscribes to the tee over the documented wire (§6.1, §6.2), and
-reports the sustained arrival rate, the bytes the daemon dropped, and whether the marker printed
-*after* the flood ever arrived. On the reference machine:
+The installed terminal system-test repository owns this measurement because it owns the
+composition of a real PTY artifact and every real recovery-sidecar artifact. A provider repository
+does not locate, build, or execute a PTY implementation. The composition gate floods 64 MB through
+the installed PTY, observes the documented tee and recovery status, and reports sustained arrival,
+gap bytes, and the final marker. On the reference machine:
 
 | subscriber | arrival | dropped (gap) | tail marker |
 | --- | --- | --- | --- |
@@ -663,7 +664,7 @@ under it.
 
 | axis | budget | where the number comes from |
 | --- | --- | --- |
-| feed throughput | **≥ the daemon's detached tee delivery rate, measured on this machine** | §14.1. There is no coefficient. The mirror must be at least as fast as the thing feeding it, or it drops bytes — and any factor multiplied into that equation would be a factor chosen by looking at the candidates. |
+| owner feed throughput | **≥ 80 MB/s** | Rounded up from the independently measured 74.8–78.9 MB/s reference PTY demand. This fixed owner floor is not recalculated from candidates. The installed composition gate separately requires provider feed ≥ the demand observed in that exact run, gap bytes = 0, and final marker = observed. |
 | rehydrate | **≤ 5 ms** | A warm reattach must be invisible. One frame at 60 Hz is 16.7 ms, and the paint has to be serialized, relayed over a socket, and parsed by the front end inside it. Five milliseconds is the serializer's share — under a third of the frame. |
 | cold paint | **≤ 5 ms** | As above; a checkpoint runs on a live session and may not stall it for a frame. |
 | paint / sealed size | **≤ 2 MiB** | Geometry, not measurement. The restore window is 80 × 1000 = 80,000 cells. The heaviest screen a cell grid can hold changes style at every cell: a truecolour foreground (`CSI 38;2;R;G;B m`, ≤ 19 bytes) plus a 3-byte character = 22 bytes per cell ≈ 1.76 MB. 2 MiB is the ceiling over that worst case. |
@@ -675,10 +676,10 @@ to crown the fastest unit is gone with the relative guard that made it mean some
 
 ### 14.3 Standing — and how the floor proved it had teeth
 
-The verdict is not a ratio. The gate holds a tee subscriber at **the unit's own measured feed
-rate**, floods a real daemon, and reports what the daemon dropped. That is the harm the
-requirement is about, so that is what the gate judges; `feed < demand` is the *explanation* for
-the harm, not the finding.
+The installed composition verdict is not a ratio. Terminal system tests flood the real PTY and
+observe what reaches each installed recovery provider. `gap = 0` and final marker arrival are the
+finding; `feed < demand` explains a failure. Provider owner gates independently enforce the fixed
+80 MB/s feed floor plus serialization and memory budgets without executing another repository.
 
 On the reference machine (demand ≈ 90 MB/s, detached, real `soksak-ptyd`, 67 MB flood):
 
@@ -721,10 +722,10 @@ comment. The benchmark is `#[ignore]`d in the ordinary test run on purpose — i
 development loop and adds noise — so it would never have run on its own. What makes it binding
 is that the verdict is not delivered by `cargo test` at all.
 
-**A unit passes when `scripts/gate.sh` passes, and by no other means.** That script is the
-whole judgement in one command: the seven fixtures against the declared reference_states, the unit
-tests, the real-daemon integration, and the performance budgets of §14.2 — every one of them
-blocking. Nothing in it is optional and nothing in it can be skipped by forgetting.
+**A unit passes its owner boundary when its repository `make verify TARGET=<native-target>` passes.**
+That command runs the declared reference-state fixtures, owner tests, and owner performance budgets.
+The installed product passes only after terminal-tests also runs the real PTY/provider composition
+gate. Neither repository executes the other's source or substitutes a model for an installed artifact.
 
 **A unit's verdict is complete on its own.** It has to be: a judgement that needs the other
 candidates in the room is a judgement the candidates have a hand in. The unit gate measures
