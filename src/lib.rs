@@ -18,7 +18,6 @@
 
 pub mod bench;
 pub mod corpus;
-pub mod daemon_demand;
 pub mod reference_state;
 pub mod state;
 

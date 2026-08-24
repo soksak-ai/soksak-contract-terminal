@@ -27,7 +27,7 @@ use std::time::Instant;
 use crate::MirrorUnderTest;
 use crate::corpus::{COLS, Fixture, ROWS};
 
-pub const BENCHMARK_REPORT_SPEC: &str = "soksak-spec-terminal-benchmark@0.0.1";
+pub const BENCHMARK_REPORT_SPEC: &str = "soksak-spec-terminal-benchmark@0.0.2";
 
 // ── ④ 측정 도구 — 순 할당 바이트를 세는 global allocator ──────────────────────
 
@@ -180,15 +180,6 @@ pub struct Report {
     pub live_bytes: usize,
     /// ④ 같은 조건에서의 프로세스 상주 메모리 증가분(바이트). 우회 메모리까지 본다.
     pub rss_bytes: usize,
-    /// **수요**(MB/s) — 분리 모드에서 **실 데몬**이 tee 로 배달하는 지속 속도. 엔진과 무관하게
-    /// 같은 실행에서 직접 잰다([`crate::daemon_demand`]). feed 예산이 곧 이 값이다.
-    pub demand_mb_s: f64,
-    /// Bytes dropped when a subscriber is limited to this sidecar's measured feed rate.
-    /// 데몬이 떨군 양. 0 이 아니면 이 미러는 복원해야 할 화면의 일부를 못 받는다.
-    pub gap_bytes: u64,
-    /// 홍수가 끝난 뒤 셸이 찍은 마지막 마커가 그 구독자에게 닿았는가. 못 닿으면 복원 화면이
-    /// 통째로 낡은 것이 된다.
-    pub tail_seen: bool,
 }
 
 fn median(mut v: Vec<f64>) -> f64 {
@@ -255,22 +246,6 @@ pub fn run<M: MirrorUnderTest>(sidecar: &str) -> Report {
     let cold_bytes = m.cold_paint().len();
     drop(m);
 
-    // 수요 — **가장 나중에** 잰다. 이 측정은 64 MB 를 만지므로 앞서 재면 ④ 의 RSS 증가분을
-    // 통째로 오염시킨다(할당자가 데워지면 모두가 0 으로 나온다 — bench 모듈 머리말의 그 함정).
-    //
-    // 실 데몬으로 잰다. 데몬 바이너리가 없으면 **수요를 모르는 것이고, 수요를 모르면 판정할 수
-    // 없다** — 조용히 넘어가지 않고 큰 소리로 죽는다.
-    let bin = crate::daemon_demand::ptyd_bin().expect(
-        "SOKSAK_PTYD_BIN 이 없다. 수요는 실 데몬이 tee 로 배달하는 속도이고, 그것을 모르면 feed \
-         예산을 판정할 수 없다(SPEC.md §14.1). sidecar gate가 코어에서 데몬을 빌드해 주입한다.",
-    );
-    let demand_mb_s = crate::daemon_demand::detached_arrival_mb_s(&bin);
-
-    // **손실 실측** — 예산이 비율 비교로 끝나면, "이 미러는 바이트를 잃는다"는 말은 추론이지
-    // 관찰이 아니다. 그래서 이 sidecar의 **실제 feed 속도**로 tee 구독자를 묶고 같은 실 데몬 폭주에
-    // 세운다. 데몬이 이 속도의 구독자에게서 떨구는 것이 있으면, 그것이 이 미러가 잃을 바이트다.
-    let loss = crate::daemon_demand::measure(&bin, false, Some(median(feed.clone())));
-
     Report {
         sidecar: sidecar.to_string(),
         feed_mb_s: median(feed),
@@ -280,9 +255,6 @@ pub fn run<M: MirrorUnderTest>(sidecar: &str) -> Report {
         cold_bytes,
         live_bytes: live,
         rss_bytes: rss,
-        demand_mb_s,
-        gap_bytes: loss.gap_bytes,
-        tail_seen: loss.tail_seen,
     }
 }
 
@@ -300,9 +272,6 @@ impl Report {
             "coldBytes": self.cold_bytes,
             "liveBytes": self.live_bytes,
             "rssBytes": self.rss_bytes,
-            "demandMbS": self.demand_mb_s,
-            "gapBytes": self.gap_bytes,
-            "tailSeen": self.tail_seen,
         })
         .to_string()
     }
@@ -323,14 +292,11 @@ impl Report {
             "coldBytes",
             "liveBytes",
             "rssBytes",
-            "demandMbS",
-            "gapBytes",
-            "tailSeen",
         ];
         if object.len() != expected.len()
             || expected.iter().any(|field| !object.contains_key(*field))
         {
-            return Err("benchmark report fields do not match 0.0.1".into());
+            return Err("benchmark report fields do not match 0.0.2".into());
         }
         let text = |field: &str| {
             object[field]
@@ -350,7 +316,7 @@ impl Report {
         };
         if text("spec")? != BENCHMARK_REPORT_SPEC {
             return Err(
-                "benchmark report spec must be soksak-spec-terminal-benchmark@0.0.1".into(),
+                "benchmark report spec must be soksak-spec-terminal-benchmark@0.0.2".into(),
             );
         }
         Ok(Report {
@@ -362,13 +328,6 @@ impl Report {
             cold_bytes: count("coldBytes")?,
             live_bytes: count("liveBytes")?,
             rss_bytes: count("rssBytes")?,
-            demand_mb_s: num("demandMbS")?,
-            gap_bytes: object["gapBytes"]
-                .as_u64()
-                .ok_or("gapBytes must be a non-negative integer")?,
-            tail_seen: object["tailSeen"]
-                .as_bool()
-                .ok_or("tailSeen must be a boolean")?,
         })
     }
 }
@@ -379,73 +338,41 @@ pub fn table(reports: &[Report]) -> String {
     let mut out = String::new();
     out.push_str(&format!("corpus: {}\n", corpus_shape()));
     out.push_str(&format!("repeats: {REPEATS} (median), release build\n\n"));
-    // 수요는 sidecar마다 따로 잰다(같은 기계·같은 관이므로 값은 서로 가깝다). 표는 중앙값을 쓴다 —
-    // 이 표에 등수는 없다. 순위표로 읽으면 잘못 읽는 것이다(SPEC.md §14).
-    let floor = demand_floor(reports);
     out.push_str(&format!(
-        "demand (real daemon, detached tee arrival, this machine): {floor:.1} MB/s = the feed floor\n\n"
+        "{:<12} {:>11} {:>7} {:>9} {:>9} {:>9} {:>8}\n",
+        "sidecar", "feed MB/s", "floor", "rehyd ms", "cold ms", "paint KB", "rss MB"
     ));
-    out.push_str(&format!(
-        "{:<12} {:>11} {:>7} {:>11} {:>6} {:>9} {:>9} {:>9} {:>8}\n",
-        "sidecar",
-        "feed MB/s",
-        "vs dmd",
-        "lost (MB)",
-        "tail",
-        "rehyd ms",
-        "cold ms",
-        "paint KB",
-        "rss MB"
-    ));
-    out.push_str(&"-".repeat(96));
+    out.push_str(&"-".repeat(76));
     out.push('\n');
 
     for r in reports {
         out.push_str(&format!(
-            "{:<12} {:>11.1} {:>7} {:>11.1} {:>6} {:>9.2} {:>9.2} {:>9.1} {:>8.1}\n",
+            "{:<12} {:>11.1} {:>7} {:>9.2} {:>9.2} {:>9.1} {:>8.1}\n",
             r.sidecar,
             r.feed_mb_s,
-            if r.feed_mb_s >= floor { "ok" } else { "UNDER" },
-            r.gap_bytes as f64 / 1e6,
-            if r.tail_seen { "ok" } else { "LOST" },
+            if r.feed_mb_s >= BUDGET_FEED_MB_S {
+                "ok"
+            } else {
+                "UNDER"
+            },
             r.rehydrate_ms,
             r.cold_ms,
             r.paint_bytes as f64 / 1024.0,
             r.rss_bytes as f64 / 1e6,
         ));
     }
-    out.push_str(
-        "\nlost = 이 sidecar의 feed 속도로 묶인 tee 구독자에게서 실 데몬이 떨군 바이트(SPEC.md §14.3).\n\
-         판정은 이 열이 한다 — feed vs 수요는 그 손실이 왜 나는지의 설명이다.\n",
-    );
     out
-}
-
-/// Feed floor for this run: median sidecar demand multiplied by the contract ratio.
-/// (그것이 후보가 기준을 정하는 길이다). 보는 것은 관의 속도뿐이다.
-pub fn demand_floor(reports: &[Report]) -> f64 {
-    let mut d: Vec<f64> = reports.iter().map(|r| r.demand_mb_s).collect();
-    d.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    d[d.len() / 2] * BUDGET_FEED_OF_DEMAND
 }
 
 // ── 예산 — 합격 게이트(SPEC.md §14.2) ────────────────────────────────────────
 // 예산의 출처는 **요구**다(SPEC.md §14). 후보의 실측 분포에서 역산하지 않는다 — 그렇게 하면
 // 기준을 후보가 정하게 되고, 전 후보가 함께 느려질 때 아무도 못 잡는다. 어겼다면 약화시키지
-// 말고 원인을 찾아라(퇴행) 아니면 재보정하라(기계) — 재보정은 값을 낮추는 것이 아니라 요구를
-// 실 데몬으로 **다시 재는 것**이다([`crate::daemon_demand`]).
+// 말고 원인을 찾아라(퇴행) 아니면 composition gate의 실제 PTY demand를 다시 측정해 입법한다.
 
-/// feed 예산 = **수요 그 자체**. 판정은 `feed >= demand` 다. 계수는 없다.
-///
-/// 유도(SPEC.md §14): 요구는 "미러가 tee gap 의 원인이 되지 않는다"이고, 수요는 **데몬이 tee 로
-/// 실제 배달하는 지속 속도**다. 미러가 그보다 느리면 데몬은 반드시 떨군다 — 이 등식에 여유분을
-/// 끼워 넣을 자리가 없다. 곱할 계수를 고르는 순간 그 계수는 후보를 보고 고른 것이 된다.
-///
-/// 수요는 [`crate::daemon_demand`] 가 **실 데몬**으로 그 기계에서 직접 잰다(모델이 아니다 —
-/// 관을 흉내 낸 모델은 실제보다 2.4배 빠른 답을 냈다). 앱이 붙어 있지 않은 **분리 모드**로
-/// 잰다: 그 모드에는 데몬의 읽기를 늦추는 것이 아무것도 없고(부착이 없으면 플로우 제어가 꺼진다),
-/// 미러가 존재하는 이유가 바로 그 모드이기 때문이다. 두 모드 중 더 엄한 쪽이 요구다.
-pub const BUDGET_FEED_OF_DEMAND: f64 = 1.0;
+/// Owner feed floor. The installed composition gate separately measures real PTY demand, gap and
+/// tail delivery. 80 MB/s is the rounded-up floor from the 74.8–78.9 MB/s native daemon demand
+/// measured on the reference Apple Silicon run; candidates do not set this number.
+pub const BUDGET_FEED_MB_S: f64 = 80.0;
 /// rehydrate·cold 지연(ms). 이 축은 엔진이 아니라 직렬화기를 잰다.
 pub const BUDGET_PAINT_MS: f64 = 5.0;
 /// 페인트·봉인 크기(바이트). 유도는 격자의 기하다(SPEC.md §14.2): 복원 창 80×1000 = 80,000 칸,
@@ -461,34 +388,10 @@ pub const BUDGET_RSS_BYTES: usize = 32 * 1024 * 1024;
 pub fn assert_within_budget(r: &Report) {
     let sidecar = &r.sidecar;
 
-    // ── 판정의 본체: **관찰된 손실**. 비율 비교가 아니다.
-    //
-    // "이 미러는 바이트를 잃는다"는 말은 추론으로 하면 안 된다. 그래서 이 sidecar의 실제 feed
-    // 속도로 묶은 tee 구독자를 실 데몬 폭주에 세워 보고, 데몬이 정말로 떨구는지를 본다.
-    // 떨궜다면 그것이 복원 화면의 구멍이고, 그 구멍이 불합격의 사유다(SPEC.md §14.3).
-    assert_eq!(
-        r.gap_bytes,
-        0,
-        "{sidecar}: 이 미러의 속도({:.1} MB/s)로는 데몬의 tee 를 따라가지 못한다 — 앱이 닫힌 채 세션이 \
-         폭주하는 동안 데몬이 **{:.1} MB 를 떨궜다**. 복원 화면에 그만큼의 구멍이 남는다. \
-         추론이 아니라 이 실행에서 실 데몬으로 관찰한 손실이다.",
-        r.feed_mb_s,
-        r.gap_bytes as f64 / 1e6
-    );
     assert!(
-        r.tail_seen,
-        "{sidecar}: 홍수가 끝난 뒤 셸이 찍은 마지막 줄이 이 속도의 구독자에게 **닿지 못했다** — 복원 \
-         화면이 통째로 낡은 것이 된다(마지막 화면을 못 받았다).",
-    );
-
-    // ── 그 손실이 왜 나는지의 설명: 미러가 자기를 먹여 주는 것보다 느리다. 손실이 0 인데 이 줄이
-    // 터진다면 예산 유도와 관찰이 어긋난 것이므로, 그때는 사람이 봐야 한다(무음 통과 금지).
-    let floor = r.demand_mb_s * BUDGET_FEED_OF_DEMAND;
-    assert!(
-        r.feed_mb_s >= floor,
-        "{sidecar}: feed {:.1} MB/s < 수요 {:.1} MB/s — 이 미러는 데몬이 tee 로 배달하는 속도보다 느리다.",
+        r.feed_mb_s >= BUDGET_FEED_MB_S,
+        "{sidecar}: feed {:.1} MB/s < owner floor {BUDGET_FEED_MB_S:.1} MB/s",
         r.feed_mb_s,
-        r.demand_mb_s
     );
     assert!(
         r.rehydrate_ms <= BUDGET_PAINT_MS,
