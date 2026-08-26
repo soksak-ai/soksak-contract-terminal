@@ -18,6 +18,7 @@
 
 pub mod bench;
 pub mod corpus;
+pub mod frame;
 pub mod reference_state;
 pub mod state;
 

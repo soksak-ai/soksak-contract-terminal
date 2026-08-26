@@ -7,16 +7,17 @@
 # any implementation happens to do, so no engine is first-class here.
 [package]
 name = "soksak-contract-terminal"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 publish = false
-description = "The soksak-spec-sidecar-terminal contract: canonical screen state, declared reference states, corpus, and engine-independent conformance assertions."
+description = "The soksak-spec-sidecar-terminal contract: canonical screen state, declared reference states, corpus, frame wire, and engine-independent conformance assertions."
 
 [lib]
 name = "soksak_contract_terminal"
 path = "src/lib.rs"
 
 [dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.150"
 
 # Independent workspace — it sits beside the units, not inside one.

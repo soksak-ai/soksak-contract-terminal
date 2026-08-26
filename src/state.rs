@@ -109,8 +109,11 @@ impl Row {
 }
 
 /// 복원 대상 private mode 집합 — rehydrate 가 재현해야 하는 전부. 순서는 reference state 직렬화가 쓰는
-/// 순서이기도 하다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// 순서이기도 하다. 직렬화 이름은 frame 와이어의 `modes` 키(camelCase)다.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "camelCase")]
 pub struct Modes {
     pub bracketed_paste: bool,
     pub app_cursor: bool,

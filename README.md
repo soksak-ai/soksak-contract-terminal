@@ -17,10 +17,14 @@ unchanged. The repo name says what this repo is: a contract, not a sidecar.
   It does not any more.
 - **`reference_states/`** — the declared screens. For each fixture: *this stream must produce this
   screen*, with the reasoning that puts it there at the top of the file.
+- **`reference_states/frames/`** — the declared `frame` reply series (SPEC.md §5.1, §12). For
+  each fixture: the three replies one subscriber receives, which fold to the declared screen.
 - **`src/corpus.rs`** — the seven fixture streams. The contract owns them; no unit keeps a
   copy.
 - **`src/state.rs`** — the canonical screen state, and with it the rules that decide when
   two screens are the same (SPEC.md §11).
+- **`src/frame.rs`** — the `frame` wire types, the reference `apply`, and the assertions that
+  grade a reply series.
 - **`src/lib.rs`** — the `MirrorUnderTest` face a unit implements, and `assert_conforms`,
   which is an assertion function and not a framework.
 

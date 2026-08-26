@@ -135,10 +135,32 @@ request-response, so it rides the service socket.
   A consuming plugin knows the pane geometry and pushes it so the mirror grid
   matches; until told, the mirror defaults to 80×24. A wrong grid width mis-wraps
   the restored paint, so this closes that gap.
-- `status` → `{sessions, checkpointAges, suppressedReplies, teeGaps}` —
+- `status` → `{sessions, checkpointAges, suppressedReplies, teeGaps, capabilities}` —
   introspection over the socket. `teeGaps` counts backpressure gaps the sidecar
   received from the daemon tee (a dropped-byte discontinuity is never silent).
+  `capabilities` describes the engine behind this sidecar once for every session:
+  `{hyperlinks}` says whether cells can carry a link target (§5.1 `link`).
   No side effect.
+- `frame{window, pane, subscriber, afterSequence?, offset?, timeoutMs?}` → the
+  viewport as runs (§5.1) — the live mirror's screen through the exact output
+  sequence it has applied, either whole or as the rows that changed since this
+  subscriber last asked.
+
+### 5.1 `frame` — the viewport as runs
+
+**Request.** `window` and `pane` name the mirror. `subscriber` is required and
+matches `^[a-z0-9._#-]{1,64}$`; anything else is `INVALID_PARAMS`. A subscriber is
+a viewer's name for its own baseline: two viewers of one pane use two names, and the
+sidecar keeps one baseline per name. `afterSequence` holds the reply until the
+mirror has applied output through at least that absolute sequence; the wait is
+bounded by `timeoutMs` (default 10000, clamped to 0..30000) and expiry is a
+`TIMEOUT` error of the same shape as `waitSize`. `offset` is how many rows into
+history the viewport is scrolled, 0 being the bottom; it is clamped to
+`historySize`, forced to 0 while the alternate screen is active, and the effective
+value is echoed.
+
+**Reply.**
+
 
 ## 6. Historical daemon peering draft (non-normative, removed)
 
@@ -486,6 +508,47 @@ geometry DEC's glyph table names, not because an engine drew a box.
 an engine's name appears anywhere in a reference_state's reasoning, and fails it if a reference_state's
 reasoning cites neither a specification nor a silence-table entry. Prose discipline decays;
 a test does not.
+
+
+Keys are camelCase and nothing else. `outputSequence` is the absolute output
+sequence the mirror had applied when the rows were read — taken under the same lock
+as the rows, never inferred from the request.
+
+**Rows.** Viewport row `y` (0 = top) shows engine line `y − offset`; a negative
+engine line is scrollback. `wrapped` is true when the row continues on the next one
+by soft wrap rather than by newline.
+
+**Runs.** A run is a maximal sequence of adjacent non-spacer cells with equal
+`(fg, bg, attrs, wide, link)`. `text` is the concatenated grapheme clusters; `n` is
+the number of cells the run covers, two per glyph when `wide`. The spacer cell after
+a wide glyph belongs to no run. Before runs are formed, a blank cell (one space, no
+combining marks) that is not inverse drops its `fg`, `bold`, `dim`, `italic` and
+`hidden` — a space has no glyph for them to show on — which is the rule §11 already
+applies to screen equality; `bg`, `underline`, `strikeout` and `inverse` stay
+because they are visible on a blank. Trailing cells that are default blanks after
+that rule are trimmed, and a row with nothing left has `runs: []`. `fg` and `bg`
+are `"default"`, `"palette:N"` (0..255) or `"#rrggbb"`. `attrs` is a bit set: 1
+bold, 2 dim, 4 italic, 8 underline, 16 inverse, 32 strikeout, 64 hidden. `wide` is
+present only when true; `link` only when the cell carries a hyperlink target, which
+an engine reports only if `status.capabilities.hyperlinks` is true.
+
+**Full or delta.** The reply is `full: true` with every row when this subscriber
+has no baseline — its first request, or its baseline was evicted — or when
+`(cols, rows, altActive, offset)` differ from the baseline. Otherwise it is
+`full: false` and `lines` holds only the rows whose content hash changed. A row's
+hash covers `wrapped` and its runs and nothing else; the cursor is not part of any
+row. A sidecar keeps at most eight baselines per pane and evicts the least recently
+used. Folding a series is defined by `apply`: a full reply replaces the picture; a
+delta replaces every header field and the rows it names and leaves the other rows as
+they were. The contract ships that definition (`src/frame.rs`), the kit ships the
+same one, and a viewer transcribes it.
+
+**Elsewhere.** `rehydrate` and `archived` carry this reply shape under `frame`,
+always `full: true`, at offset 0.
+
+**Errors.** `INVALID_PARAMS` (missing coordinates or a bad `subscriber`),
+`NOT_FOUND` (no live mirror for the key), `TIMEOUT` (`afterSequence` not reached
+before the deadline).
 
 Where the engines disagreed — and where they agreed on something the specification does not
 say — the contract judged. §13 records those judgements.
