@@ -1,0 +1,603 @@
+{
+  "fixture": "cold_paint_alt",
+  "cols": 80,
+  "rows": 24,
+  "cuts": [
+    166,
+    332,
+    498
+  ],
+  "replies": [
+    {
+      "outputSequence": 166,
+      "cols": 80,
+      "rows": 24,
+      "cursor": [
+        15,
+        0
+      ],
+      "cursorVisible": true,
+      "altActive": false,
+      "historySize": 0,
+      "offset": 0,
+      "modes": {
+        "bracketedPaste": false,
+        "appCursor": false,
+        "appKeypad": false,
+        "mouseClick": false,
+        "mouseDrag": false,
+        "mouseMotion": false,
+        "sgrMouse": false,
+        "utf8Mouse": false,
+        "focusInOut": false,
+        "alternateScroll": false,
+        "showCursor": true,
+        "lineWrap": true,
+        "insert": false
+      },
+      "full": true,
+      "lines": [
+        {
+          "y": 0,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-1",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 1,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-2",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 2,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-3",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 3,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-4",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 4,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-5",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 5,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-6",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 6,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-7",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 7,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-8",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 8,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-9",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 8
+            }
+          ]
+        },
+        {
+          "y": 9,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-10",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 9
+            }
+          ]
+        },
+        {
+          "y": 10,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-11",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 9
+            }
+          ]
+        },
+        {
+          "y": 11,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-12",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 9
+            }
+          ]
+        },
+        {
+          "y": 12,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-13",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 9
+            }
+          ]
+        },
+        {
+          "y": 13,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-14",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 9
+            }
+          ]
+        },
+        {
+          "y": 14,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-15",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 9
+            }
+          ]
+        },
+        {
+          "y": 15,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "SCROLL-16",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 9
+            }
+          ]
+        },
+        {
+          "y": 16,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 17,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 18,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 19,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 20,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 21,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 22,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 23,
+          "wrapped": false,
+          "runs": []
+        }
+      ]
+    },
+    {
+      "outputSequence": 332,
+      "cols": 80,
+      "rows": 24,
+      "cursor": [
+        0,
+        0
+      ],
+      "cursorVisible": true,
+      "altActive": true,
+      "historySize": 0,
+      "offset": 0,
+      "modes": {
+        "bracketedPaste": false,
+        "appCursor": false,
+        "appKeypad": false,
+        "mouseClick": false,
+        "mouseDrag": false,
+        "mouseMotion": false,
+        "sgrMouse": false,
+        "utf8Mouse": false,
+        "focusInOut": false,
+        "alternateScroll": false,
+        "showCursor": true,
+        "lineWrap": true,
+        "insert": false
+      },
+      "full": true,
+      "lines": [
+        {
+          "y": 0,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 1,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 2,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 3,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 4,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 5,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 6,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 7,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 8,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 9,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 10,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 11,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 12,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 13,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 14,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 15,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 16,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 17,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 18,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 19,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 20,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 21,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 22,
+          "wrapped": false,
+          "runs": []
+        },
+        {
+          "y": 23,
+          "wrapped": false,
+          "runs": []
+        }
+      ]
+    },
+    {
+      "outputSequence": 498,
+      "cols": 80,
+      "rows": 24,
+      "cursor": [
+        9,
+        11
+      ],
+      "cursorVisible": true,
+      "altActive": true,
+      "historySize": 0,
+      "offset": 0,
+      "modes": {
+        "bracketedPaste": false,
+        "appCursor": false,
+        "appKeypad": false,
+        "mouseClick": false,
+        "mouseDrag": false,
+        "mouseMotion": false,
+        "sgrMouse": false,
+        "utf8Mouse": false,
+        "focusInOut": false,
+        "alternateScroll": false,
+        "showCursor": true,
+        "lineWrap": true,
+        "insert": false
+      },
+      "full": false,
+      "lines": [
+        {
+          "y": 0,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-1",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 1,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-2",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 2,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-3",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 3,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-4",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 4,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-5",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 5,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-6",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 6,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-7",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 7,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-8",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 8,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-9",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 10
+            }
+          ]
+        },
+        {
+          "y": 9,
+          "wrapped": false,
+          "runs": [
+            {
+              "text": "TUI-LINE-10",
+              "fg": "default",
+              "bg": "default",
+              "attrs": 0,
+              "n": 11
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
