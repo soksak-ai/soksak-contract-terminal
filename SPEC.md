@@ -485,6 +485,22 @@ h` / `l`, "Show cursor (DECTCEM), VT220"), and the canonical form already carrie
 set. A second, separate flag for the same fact could only ever be a way for the two to
 disagree.
 
+**N8 — Cursor visual state comes from the engine.** DEC VT520 DECSCUSR assigns
+`CSI Ps SP q` values 1/2 to blinking/steady block and 3/4 to blinking/steady underline.
+Xterm extends the same control with 5/6 for blinking/steady bar. The contract therefore
+uses exactly `CursorStyle { shape: block | underline | bar, blinking }`. Parameter 0 is
+not graded: it selects the terminal's configured default, and a preference is not a wire
+standard. Xterm DEC private mode 12 starts or stops blinking without changing shape.
+DECTCEM changes only `show_cursor`; hiding a cursor preserves the visual state that returns
+when it is shown.
+
+The adapter reports this value from its engine's public state API. Re-parsing CSI in an
+adapter, renderer, plugin, or Core would create a second terminal emulator and is not
+conformance evidence. `rehydrate` must restore the selected visual state with DECSCUSR.
+Blink phase is not terminal state and is not serialized: a renderer owns its animation
+clock, starts it only when the engine says `blinking`, and stops it from explicit focus,
+pause, or shutdown events rather than polling engine state.
+
 ## 12. Reference states — the declared screens
 
 For each fixture the contract declares the screen the stream must produce: `reference_states/`,

@@ -42,17 +42,20 @@ candidate graded against it.
 
 ## How a unit is graded
 
-Three axes, each an ordinary assertion:
+Four axes, each an ordinary assertion:
 
 1. **Interpretation** — feed the corpus stream; the mirror's screen state equals the reference_state.
 2. **Restore** — feed that mirror's `rehydrate` paint to a fresh mirror of the same engine;
    its screen state equals the *same* reference_state. The reference_state being external is what stops a
    self-consistent error from hiding.
 3. **Replay guard** — no byte leaves the mirror, no query rides in the paint.
+4. **Cursor visual state** — `assert_cursor_style_conforms` feeds the six explicit DECSCUSR
+   values, DECTCEM and private mode 12; the mirror reports its engine's shape/blink state and
+   warm rehydrate preserves it. An adapter-side CSI parser is not an implementation.
 
 A unit's `tests/conformance.rs` implements `MirrorUnderTest` (the one thing it owes: turn
-its engine's representation into the canonical form) and calls `assert_conforms` from seven
-plain `#[test]` functions.
+its engine's representation into the canonical form), calls `assert_conforms` from seven
+plain `#[test]` functions, and calls the shared cursor assertion from one more test.
 
 ## Where a rule may come from
 
