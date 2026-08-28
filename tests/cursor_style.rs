@@ -48,7 +48,16 @@ impl MirrorUnderTest for ScriptedCursor {
         self.rows = rows;
     }
 
-    fn rehydrate(&self) -> Vec<u8> { Vec::new() }
+    fn rehydrate(&self) -> Vec<u8> {
+        match self.style {
+            CursorStyle { shape: CursorShape::Block, blinking: true } => b"\x1b[1 q".to_vec(),
+            CursorStyle { shape: CursorShape::Block, blinking: false } => b"\x1b[2 q".to_vec(),
+            CursorStyle { shape: CursorShape::Underline, blinking: true } => b"\x1b[3 q".to_vec(),
+            CursorStyle { shape: CursorShape::Underline, blinking: false } => b"\x1b[4 q".to_vec(),
+            CursorStyle { shape: CursorShape::Bar, blinking: true } => b"\x1b[5 q".to_vec(),
+            CursorStyle { shape: CursorShape::Bar, blinking: false } => b"\x1b[6 q".to_vec(),
+        }
+    }
     fn cold_paint(&self) -> Vec<u8> { Vec::new() }
     fn suppressed_replies(&self) -> u64 { 0 }
     fn cursor_style(&self) -> CursorStyle { self.style }

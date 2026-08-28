@@ -14,6 +14,27 @@ pub enum Color {
     Rgb(u8, u8, u8),
 }
 
+/// Program-selected cursor shape. Visibility is not a shape: DECTCEM remains
+/// [`Modes::show_cursor`], so hiding a cursor does not erase the shape that will
+/// be used when it is shown again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CursorShape {
+    Block,
+    Underline,
+    Bar,
+}
+
+/// The visual state selected by DECSCUSR and DEC private mode 12. This is
+/// engine state, not a renderer preference and not a locally re-parsed escape
+/// sequence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorStyle {
+    pub shape: CursorShape,
+    pub blinking: bool,
+}
+
 /// 셀 속성. underline 은 밑줄 **모양**(single/double/curly…)을 구분하지 않는다 — 계약이 복원하는
 /// 것은 SGR 4 하나이고, 모양은 이 계약의 화면 동치에 들지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

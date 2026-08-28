@@ -23,7 +23,7 @@ pub mod reference_state;
 pub mod state;
 
 pub use corpus::{COLS, Fixture, ROWS};
-pub use state::{Attrs, Cell, Color, Modes, Row, ScreenState};
+pub use state::{Attrs, Cell, Color, CursorShape, CursorStyle, Modes, Row, ScreenState};
 
 /// 피시험 미러의 면 — 합격시험이 유닛을 만지는 유일한 통로. 유닛의 엔진·내부 타입은 이 면 뒤에
 /// 남는다(시험은 엔진을 모른다).
@@ -52,6 +52,72 @@ pub trait MirrorUnderTest {
 
     /// 현재 화면 상태를 계약의 정규형으로.
     fn screen_state(&self) -> ScreenState;
+
+    /// 엔진이 해석한 현재 cursor shape/blink 상태. Adapter가 CSI를 다시 파싱해 만든 값은
+    /// 적합성 증거가 아니다.
+    fn cursor_style(&self) -> CursorStyle;
+}
+
+/// DEC VT520 DECSCUSR and xterm's bar extension (`CSI Ps SP q`). Ps 0 is an
+/// implementation-configured default and is deliberately absent: a contract
+/// cannot turn one engine's default preference into a terminal standard.
+pub const DECSCUSR_CASES: [(u8, CursorStyle); 6] = [
+    (1, CursorStyle { shape: CursorShape::Block, blinking: true }),
+    (2, CursorStyle { shape: CursorShape::Block, blinking: false }),
+    (3, CursorStyle { shape: CursorShape::Underline, blinking: true }),
+    (4, CursorStyle { shape: CursorShape::Underline, blinking: false }),
+    (5, CursorStyle { shape: CursorShape::Bar, blinking: true }),
+    (6, CursorStyle { shape: CursorShape::Bar, blinking: false }),
+];
+
+/// Shared cursor acceptance case. It grades the engine's public state and the
+/// warm rehydrate bytes; it never parses the session stream on an adapter's
+/// behalf.
+pub fn assert_cursor_style_conforms<M: MirrorUnderTest>() {
+    for (parameter, expected) in DECSCUSR_CASES {
+        let sequence = format!("\x1b[{parameter} q");
+        let mut mirror = M::new(COLS, ROWS);
+        mirror.feed(sequence.as_bytes());
+        assert_eq!(
+            mirror.cursor_style(),
+            expected,
+            "DECSCUSR Ps={parameter}: engine cursor state"
+        );
+
+        let paint = mirror.rehydrate();
+        let mut restored = M::new(COLS, ROWS);
+        restored.feed(&paint);
+        assert_eq!(
+            restored.cursor_style(),
+            expected,
+            "DECSCUSR Ps={parameter}: warm rehydrate cursor state"
+        );
+    }
+
+    // DECTCEM changes visibility only. The selected shape and blink state
+    // survive both hide and show.
+    let selected = CursorStyle { shape: CursorShape::Bar, blinking: false };
+    let mut visibility = M::new(COLS, ROWS);
+    visibility.feed(b"\x1b[6 q");
+    visibility.feed(b"\x1b[?25l");
+    assert!(!visibility.screen_state().modes.show_cursor, "DECTCEM hide");
+    assert_eq!(visibility.cursor_style(), selected, "DECTCEM hide preserves style");
+    visibility.feed(b"\x1b[?25h");
+    assert!(visibility.screen_state().modes.show_cursor, "DECTCEM show");
+    assert_eq!(visibility.cursor_style(), selected, "DECTCEM show preserves style");
+
+    // Xterm DEC private mode 12 changes blink without changing the selected
+    // shape. It is separate from DECTCEM.
+    let mut blink = M::new(COLS, ROWS);
+    blink.feed(b"\x1b[6 q");
+    blink.feed(b"\x1b[?12h");
+    assert_eq!(
+        blink.cursor_style(),
+        CursorStyle { shape: CursorShape::Bar, blinking: true },
+        "DECSET 12 starts cursor blinking"
+    );
+    blink.feed(b"\x1b[?12l");
+    assert_eq!(blink.cursor_style(), selected, "DECRST 12 stops cursor blinking");
 }
 
 /// 재생 페인트에 실려서는 안 되는 질의 바이트(이중응답 원천 차단).
