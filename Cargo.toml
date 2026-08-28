@@ -7,7 +7,7 @@
 # any implementation happens to do, so no engine is first-class here.
 [package]
 name = "soksak-contract-terminal"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 publish = false
 description = "The soksak-spec-sidecar-terminal contract: canonical screen state, declared reference states, corpus, frame wire, and engine-independent conformance assertions."
