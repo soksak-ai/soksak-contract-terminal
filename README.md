@@ -12,9 +12,8 @@ unchanged. The repo name says what this repo is: a contract, not a sidecar.
 
 ## What it holds
 
-- **`SPEC.md`** — the contract. It used to live in the `soksak-sidecar-terminal-alacritty`
-  repo, which made one engine unit the owner of the rules every engine unit is judged by.
-  It does not any more.
+- **`SPEC.md`** — the contract. This repository owns the rules that every declared engine unit
+  implements and that the acceptance suite evaluates.
 - **`reference_states/`** — the declared screens. For each fixture: *this stream must produce this
   screen*, with the reasoning that puts it there at the top of the file.
 - **`reference_states/frames/`** — the declared `frame` reply series (SPEC.md §5.1, §12). For
@@ -46,7 +45,7 @@ Four axes, each an ordinary assertion:
 
 1. **Interpretation** — feed the corpus stream; the mirror's screen state equals the reference_state.
 2. **Restore** — feed that mirror's `rehydrate` paint to a fresh mirror of the same engine;
-   its screen state equals the *same* reference_state. The reference_state being external is what stops a
+   its screen state equals the *same* reference_state. The declared reference_state is what stops a
    self-consistent error from hiding.
 3. **Replay guard** — no byte leaves the mirror, no query rides in the paint.
 4. **Cursor visual state** — `assert_cursor_style_conforms` feeds the six explicit DECSCUSR
@@ -86,13 +85,13 @@ or if the reasoning cites nothing at all).
 
 | unit | fixtures | performance floor |
 | --- | --- | --- |
-| `soksak-sidecar-terminal-vt100` | 7 / 7 (on the fork that adds DEC Special Graphics) | ok |
+| `soksak-sidecar-terminal-vt100` | 7 / 7 | ok |
 | `soksak-sidecar-terminal-alacritty` | 7 / 7 | ok |
-| `soksak-sidecar-terminal-wezterm` | 7 / 7 (on the fork that makes a wide character obey DECAWM at the margin) | ok |
+| `soksak-sidecar-terminal-wezterm` | 7 / 7 | ok |
 | `soksak-sidecar-terminal-ghostty` | 7 / 7 | ok (closest to the line) |
 
-Both of the engines standing on a fork are there because this suite found a real defect in
-them, and both defects were closed at their owner rather than papered over in the unit. The
+Two units contain provider-specific corrections required by this suite. Both corrections are
+implemented at the owning unit rather than papered over in the contract. The
 suite also found two bugs in the *mirror's own code*, in every unit: a style left active across
 a line break, which bleeds colour on any terminal that erases with the current background; and
 a restore paint that turned alternate scroll **off** in the user's terminal for every session
@@ -157,8 +156,8 @@ about 25×, so only the installed composition path is acceptance evidence.
 
 Every unit that clears the gate is an equal choice, and the plugin manifest must name the one
 it wants. There is no default, because an implicit default is a ranking wearing a shrug: the
-moment one exists, every other unit is a deviation from it. Supply-chain facts (a fork, a pinned
-commit) are recorded because a plugin author needs them — they are not a grade.
+moment one exists, every other unit is a deviation from it. Provider packaging facts (corrections
+and pinned revisions) are recorded because a plugin author needs them — they are not a grade.
 
 ## Licensing
 

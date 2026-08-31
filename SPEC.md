@@ -70,8 +70,8 @@ storage and written atomically; the PTY daemon stores no terminal checkpoint or 
 
 The original §3–§6 text below documents a removed pre-0.0.1 draft. Its two PTY sockets, unframed
 hello, `createOrAttach`, `listSessions`, `getSnapshot`, `storeBlob`, near-birth subscription and
-daemon-owned checkpoint seal are not contract requirements and must not be implemented. They remain
-temporarily as design history until the surrounding section references are rewritten.
+daemon-owned checkpoint seal are not contract requirements and must not be implemented. The text is
+retained as a non-normative migration record; the sections below define the active contract.
 
 ## 3.1 Historical two-socket draft (non-normative)
 
@@ -285,7 +285,7 @@ all three axes:
    the reference_state.
 2. **Restore.** Feed that mirror's `rehydrate` paint to a **fresh mirror of the same
    engine**; its screen state equals the **same reference_state**. Because the reference_state is
-   external, an engine that misreads the stream and then re-misreads its own paint the
+   declared by this contract, an engine that misreads the stream and then re-misreads its own paint the
    same way does not pass — a self-consistent error has nowhere to hide.
 3. **Replay guard.** No byte leaves the mirror, the paint carries no query bytes, and
    swallowed queries are observable.
@@ -314,11 +314,9 @@ for it — an implicit default is a ranking wearing a shrug, and the moment one 
 other unit is a deviation from it. Every unit that clears the gate is an equal choice; the
 plugin author makes the choice and writes it down.
 
-**Supply-chain facts are recorded, not graded.** Two engines currently run on a local fork
-that closes a defect this suite found, and one runs on a pinned commit of a library its own
-authors call unstable (§13). Those are true, they matter to whoever picks a unit, and they
-belong in the record — but they are not a rung on any ladder here. This contract judges one
-thing: does the unit produce the declared screen, and does it clear the floor. A unit that
+**Provider packaging facts are recorded, not graded.** A unit may carry provider-specific
+corrections or a pinned dependency revision (§13). Those facts identify the installed artifact,
+but they are not a rung on any ladder here. This contract judges one thing: does the unit produce the declared screen, and does it clear the floor. A unit that
 does both is conformant, and nothing about its packaging makes it more so.
 
 ## 11. Screen state — the canonical form
