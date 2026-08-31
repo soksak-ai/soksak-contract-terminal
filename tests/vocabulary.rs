@@ -77,3 +77,17 @@ fn public_contract_uses_reference_state_vocabulary() {
         violations.join("\n")
     );
 }
+
+#[test]
+fn performance_contract_names_the_measured_composition_path() {
+    let readme = std::fs::read_to_string("README.md").expect("read README.md");
+    assert!(
+        readme.contains("only the installed composition path is acceptance evidence"),
+        "the performance contract must name the measured composition path"
+    );
+    let parser_only_comparison = ["xterm", ".js's parser"].concat();
+    assert!(
+        !readme.contains(&parser_only_comparison),
+        "a parser-only estimate is not the composition authority"
+    );
+}
