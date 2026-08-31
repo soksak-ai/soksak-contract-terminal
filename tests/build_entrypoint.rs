@@ -28,3 +28,25 @@ fn workflow_injects_the_rust_owner_and_calls_make() {
     assert!(!workflow.contains("toolchain: \"1.96.0\""));
     assert!(!workflow.contains("cargo test --release"));
 }
+
+#[test]
+fn locked_build_owns_a_versioned_lockfile() {
+    let makefile = fs::read_to_string("Makefile").expect("Makefile must exist");
+    assert!(
+        makefile.contains("cargo fetch --locked")
+            && makefile.contains("cargo build --locked")
+            && makefile.contains("cargo test --locked"),
+        "every Cargo build phase must preserve the locked dependency closure"
+    );
+
+    assert!(
+        Path::new("Cargo.lock").is_file(),
+        "a repository that verifies with --locked must version Cargo.lock"
+    );
+
+    let gitignore = fs::read_to_string(".gitignore").expect(".gitignore must exist");
+    assert!(
+        !gitignore.lines().any(|line| line.trim() == "Cargo.lock"),
+        "Cargo.lock cannot reach a clean checkout while .gitignore excludes it"
+    );
+}

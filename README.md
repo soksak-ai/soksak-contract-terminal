@@ -115,8 +115,10 @@ assertion implementation:
 make verify
 ```
 
-The exact Rust toolchain is owned by `rust-toolchain.toml`. This repository does not discover or
-execute provider repositories. Each provider runs the shared contract cases against its own
+The exact Rust toolchain is owned by `rust-toolchain.toml`. `Cargo.lock` is versioned because every
+Cargo phase runs with `--locked`; dependency changes must update that closure deliberately and pass
+this repository's gate. This repository does not discover or execute provider repositories. Each
+provider runs the shared contract cases against its own
 implementation from its own `make verify TARGET=<native-target>` gate; the installed-system
 repository owns the real multi-provider composition.
 
