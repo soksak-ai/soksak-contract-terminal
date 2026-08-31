@@ -610,18 +610,13 @@ column**, yielding a row that claimed 81 columns of content in an 80-column grid
 scrollback one row short: its print path checked only whether the cursor had passed the
 margin, never whether the grapheme fit in what was left. The reference_state declares the wrap.
 
-  Closed at its owner, as the vt100 charset gap was. A local fork adds the missing check —
-  under DECAWM a grapheme wider than the remaining columns moves to the next line — and
-  against that engine the unchanged suite is 7 of 7. Release eligibility waits on the fix
-  reaching a published crate; a patch for wezterm upstream is prepared.
+  The WezTerm provider applies the missing check: under DECAWM a grapheme wider than the
+  remaining columns moves to the next line. The unchanged suite is 7 of 7 for this provider.
+  Release eligibility requires the provider artifact to contain this behavior.
 
-  This is the finding that condemns the previous acceptance design. Under the old suite —
-  which rendered every unit's restore paint with the Alacritty engine and compared it to
-  Alacritty's rendering of the raw stream — wezterm passed all seven. It passed because
-  its serializer emits text, and Alacritty, replaying that text, wrapped the wide
-  character correctly; the misinterpretation inside wezterm's own grid was erased by the
-  re-rendering. Only a declared reference_state, compared against the engine's own screen, can see
-  it.
+  The acceptance rule compares the declared screen state with the screen produced by the
+  same provider. Replaying serialized text in another provider is not an acceptance test,
+  because it can hide a provider's own grid error.
 
 **Pen-coloured blanks after a line break — one representation difference, one real bug.**
 wezterm-term fills the untouched cells of a newly exposed line with the pen's current SGR
@@ -648,13 +643,10 @@ different things came out of that.
   the bleed had nothing to land on. It took an engine that does fill, graded against a
   declared reference_state, to make it visible.
 
-**vt100 — an engine capability gap, closed at its owner.** The published `vt100` 0.16.2
-does not implement DEC Special Graphics: it ignores `ESC ( 0` and treats SI/SO as no-ops,
-so a line-drawing border is mirrored as literal ASCII. That was 6 of 7. A local fork adds
-the designation, the SO/SI invocation, glyph translation on print, DECSC/DECRC of the
-charset state, and persistence across the alternate screen; against that engine the
-unchanged suite is 7 of 7. Release eligibility waits on the support reaching a published
-crate.
+**vt100 — provider capability.** The provider implements DEC Special Graphics, including
+`ESC ( 0`, SI/SO invocation, glyph translation, DECSC/DECRC charset state, and alternate
+screen persistence. The unchanged suite is 7 of 7. Release eligibility requires these
+capabilities in the provider artifact.
 
 **ghostty — a seat misconfiguration, not an engine gap.** The engine's scrollback limit
 is a byte budget, not a line count (the C header's wording notwithstanding), and pruning
