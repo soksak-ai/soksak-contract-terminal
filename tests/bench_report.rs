@@ -3,7 +3,7 @@ use soksak_contract_terminal::bench::{BENCHMARK_REPORT_SPEC, Report};
 #[test]
 fn benchmark_report_is_versioned_json() {
     let report = Report {
-        sidecar: "soksak-sidecar-terminal-vt100".into(),
+        sidecar: "fixture-provider".into(),
         feed_mb_s: 120.5,
         rehydrate_ms: 1.2,
         paint_bytes: 4096,
@@ -15,9 +15,9 @@ fn benchmark_report_is_versioned_json() {
     let json = report.to_json();
     assert!(json.contains(BENCHMARK_REPORT_SPEC));
     let parsed = Report::from_json(&json).expect("parse benchmark JSON");
-    assert!(json.contains("\"sidecar\":\"soksak-sidecar-terminal-vt100\""));
+    assert!(json.contains("\"sidecar\":\"fixture-provider\""));
     assert!(!json.contains("\"unit\""));
-    assert_eq!(parsed.sidecar, "soksak-sidecar-terminal-vt100");
+    assert_eq!(parsed.sidecar, "fixture-provider");
     assert_eq!(parsed.feed_mb_s, 120.5);
     assert_eq!(
         BENCHMARK_REPORT_SPEC,
