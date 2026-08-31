@@ -252,22 +252,15 @@ not in the tee. The design decision:
 ## 8. Engines are candidates, not authorities
 
 No engine is canonical. The VT state machine that produces the paint is chosen per
-unit, and every engine — including Alacritty — is an equal candidate graded by the
-declared reference_states (§11, §12). This matters because the alternative was tried: for a
-while the acceptance suite rendered each unit's restore paint with the Alacritty
-engine and compared it against Alacritty's own rendering of the raw stream. That made
-"correct" mean "what Alacritty does", made the Alacritty unit its own judge, and — as
-§13 records — could not see a real misinterpretation in another engine, because the
-error was masked by the re-rendering. The standard is now declared data, and no
-implementation sits above another.
+unit, and every unit is graded against the declared reference_states (§11, §12).
+The acceptance suite compares each unit with contract data rather than another unit's
+output. This prevents an implementation from defining the expected result for its own
+input. The standard is declared data, and no implementation sits above another.
 
-**Deleting the judge engine was not enough**, and it is worth being precise about why.
-An engine can set the standard without ever being called as a judge: it can simply be
-the place a value was read from. That is what happened to the state a mirror is born in
-(§11.I) and to the performance floor (§14) — no engine judged anything, and both numbers
-were still an engine's. **§11.A is the rule that closes the second door**: it says where
-a value may come from, and an engine is not on the list at any rung. Everything below —
-the canonical form, the reference_states, the budgets — answers to it.
+An implementation may provide evidence for a value without defining that value. This
+applies to initial state (§11.I), performance limits (§14), and rendered cells.
+§11.A defines the permitted authority for every value; implementation output is not an
+authority at any rung. The canonical form, reference_states, and budgets all use that rule.
 
 **Licensing is per-unit.** Each engine unit carries the license and attribution of the
 engine it bundles. The contract imposes none, and no license crosses between units.
@@ -569,20 +562,14 @@ say — the contract judged. §13 records those judgements.
 
 ## 13. Candidate review
 
-**The initial state was an engine's, and all four units agreed with it.** This is the finding
-that matters most, because nothing failed. Every reference_state declares the whole mode vector,
-including the modes the stream never mentions — and those values had been read off a running
-engine. Alacritty's `TermMode` default carries `ALTERNATE_SCROLL`, so `alternate_scroll = 1`
-went into the reference_states as the state a mirror is born in. The other three units were then built
-to match: the ghostty seat read its engine's mode 1007 (also on by default), and the wezterm
-and vt100 seats wrote `alternate_scroll: true` into their own initializers by hand. Four
-units, unanimous, 7 of 7 — and the value was never anything but one engine's habit.
+**The initial state definition was incorrect.** Every reference_state declares the whole mode vector,
+including modes the stream never mentions. The earlier vector enabled `alternate_scroll` at creation,
+which conflicted with the contract's declared reset state. Multiple units reproduced that value, but
+agreement did not provide authority. The contract now defines the creation vector directly and every
+unit applies it.
 
-The specification says otherwise, and says it twice. `ctlseqs`: *"The initial state of
-Alternate Scroll mode is set using the alternateScroll resource."* The xterm manual:
-*"alternateScroll (class ScrollCond) … The default is "false"."* The contract now declares the
-birth state from those documents (§11.I), and the units are put into it — the standard moved
-the engines, which is the only direction that was ever allowed.
+The contract defines `alternate_scroll` as reset at creation (§11.I), and every unit
+uses that value. A unit cannot change the contract's initial state.
 
   **The bug it was hiding.** The restore paint is written as a delta from the state a fresh
   terminal is in. While that state was Alacritty's, every unit's `mode_sets` emitted
