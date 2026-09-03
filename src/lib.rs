@@ -23,7 +23,7 @@ pub mod reference_state;
 pub mod state;
 
 pub use corpus::{COLS, Fixture, ROWS};
-pub use state::{Attrs, Cell, Color, CursorShape, CursorStyle, Modes, Row, ScreenState};
+pub use state::{Attrs, Cell, Color, CursorShape, CursorStyle, ModeReport, Modes, Row, ScreenState};
 
 /// 피시험 미러의 면 — 합격시험이 유닛을 만지는 유일한 통로. 유닛의 엔진·내부 타입은 이 면 뒤에
 /// 남는다(시험은 엔진을 모른다).
@@ -56,6 +56,16 @@ pub trait MirrorUnderTest {
     /// 엔진이 해석한 현재 cursor shape/blink 상태. Adapter가 CSI를 다시 파싱해 만든 값은
     /// 적합성 증거가 아니다.
     fn cursor_style(&self) -> CursorStyle;
+
+    /// 재생만으로는 되살릴 수 없는 mode 상태. 소유자가 이것을 기록해 두었다가 복원 시 재생보다
+    /// 먼저 적용한다.
+    ///
+    /// `screen_state()` 도 같은 사실을 담지만 그것은 격자 전체를 만든다. mode 는 프로그램이
+    /// 전체 화면 모드에 들고 날 때 바뀌므로 그 시점마다 격자를 만드는 것은 값이 맞지 않는다.
+    fn mode_report(&self) -> ModeReport {
+        let state = self.screen_state();
+        ModeReport::of(state.modes, state.alt)
+    }
 }
 
 /// DEC VT520 DECSCUSR and xterm's bar extension (`CSI Ps SP q`). Ps 0 is an

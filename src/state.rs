@@ -222,3 +222,64 @@ pub struct ScreenState {
     /// 보이는 화면 — 위에서 아래로, 길이 = rows.
     pub visible: Vec<Row>,
 }
+
+/// 재생만으로는 되살릴 수 없는 mode 상태와 그것이 속한 화면.
+///
+/// 저장된 출력이 시작되기 전에 설정된 mode 는 저장소가 든 어느 바이트에도 없습니다. 재생만 하면
+/// 그 화면의 mode 는 기본값이 되고, 프로그램이 그에 대해 오작동하기 전까지 드러나지 않습니다.
+/// 미러는 byte window 와 별개로 mode 를 추적하며 (corpus 의 `private modes beyond the ring
+/// window` 가 그것을 채점합니다), 이 보고가 그 상태를 미러 밖으로 내보내는 형태입니다.
+///
+/// alternate screen 은 자기 mode slot 을 따로 가지므로 어느 화면의 것인지가 보고의 일부입니다.
+/// 그것을 잃은 보고는 한 화면의 mode 를 다른 화면에 복원합니다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModeReport {
+    pub modes: Modes,
+    /// alt-screen 이 활성이었는가. 이 보고가 어느 화면의 것인지입니다.
+    pub alt: bool,
+}
+
+impl ModeReport {
+    pub fn of(modes: Modes, alt: bool) -> Self {
+        ModeReport { modes, alt }
+    }
+
+    /// 이 보고가 wire 로 나가는 형태. 첫 항이 형식 버전이며, 다른 버전이 쓴 보고는 기본값으로
+    /// 읽히는 대신 거부됩니다. 기본값으로 읽으면 mode 가 틀린 화면을 복원하고 그에 대해 아무것도
+    /// 말하지 않습니다.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut out = String::from("v1");
+        out.push(' ');
+        out.push(if self.alt { '1' } else { '0' });
+        for flag in self.modes.to_flags() {
+            out.push(' ');
+            out.push(if flag { '1' } else { '0' });
+        }
+        out.into_bytes()
+    }
+
+    pub fn decode(raw: &[u8]) -> Option<Self> {
+        let text = std::str::from_utf8(raw).ok()?;
+        let mut parts = text.split(' ');
+        if parts.next()? != "v1" {
+            return None;
+        }
+        let alt = match parts.next()? {
+            "0" => false,
+            "1" => true,
+            _ => return None,
+        };
+        let mut flags = [false; 13];
+        for slot in flags.iter_mut() {
+            *slot = match parts.next()? {
+                "0" => false,
+                "1" => true,
+                _ => return None,
+            };
+        }
+        if parts.next().is_some() {
+            return None;
+        }
+        Some(ModeReport { modes: Modes::from_flags(flags), alt })
+    }
+}

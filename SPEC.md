@@ -130,6 +130,13 @@ request-response, so it rides the service socket.
   live. `paint` is the flattened inert screen (an active alt-screen is flattened
   into the text flow — a dead session's TUI is a snapshot, not a live screen).
   No sequence handoff — there is no live stream to attach.
+- `modeReport{window, pane}` → `{report}` — the mode state a replay cannot rebuild, and which
+  screen it is for. A mode set before the stored output begins is in no byte that store holds, so
+  an owner records this and applies it ahead of a replay. `screen_state` holds the same fact and
+  builds the whole grid to answer; modes change when a program enters or leaves a full-screen mode,
+  and building a grid at each of those does not pay. The report states its own format version, so
+  one another version wrote is refused rather than read as defaults — read as defaults it restores
+  a screen whose modes are wrong and states nothing about it.
 - `resize{window, pane, cols, rows}` → `{ok}` — the tee carries output bytes
   only, not the terminal size (resize is a control op, not a byte in the stream).
   A consuming plugin knows the pane geometry and pushes it so the mirror grid
