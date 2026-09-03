@@ -137,6 +137,9 @@ request-response, so it rides the service socket.
   and building a grid at each of those does not pay. The report states its own format version, so
   one another version wrote is refused rather than read as defaults — read as defaults it restores
   a screen whose modes are wrong and states nothing about it.
+- `modes{session, report}` → `{session, report}` on the PTY owner — where a mirror's report is
+  recorded and read back. An empty `report` is a read. The bytes travel base64, which is what a
+  JSON envelope does with them.
 - `resize{window, pane, cols, rows}` → `{ok}` — the tee carries output bytes
   only, not the terminal size (resize is a control op, not a byte in the stream).
   A consuming plugin knows the pane geometry and pushes it so the mirror grid
