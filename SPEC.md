@@ -22,8 +22,10 @@ is consumed.
 
 **One contract, many engine units.** `soksak-sidecar-terminal-alacritty`,
 `-wezterm`, `-vt100`, and `-ghostty` are separate units implementing this same
-contract — one at a time behind a terminal plugin's declaration. The unit name
-carries the engine, exactly as `[redacted]` carries Chromium.
+contract — one at a time behind a terminal plugin's declaration. The engine is in
+the unit's name because the engine is what makes it a separate unit: two units
+implementing this contract differ in nothing else a caller can see, so a name that
+left the engine out would leave the four indistinguishable in a declaration.
 
 ## 1. Purpose and boundary
 
