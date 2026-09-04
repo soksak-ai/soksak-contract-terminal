@@ -130,6 +130,49 @@ pub fn assert_cursor_style_conforms<M: MirrorUnderTest>() {
     assert_eq!(blink.cursor_style(), selected, "DECRST 12 stops cursor blinking");
 }
 
+/// 기록된 mode 보고를 새 미러에 적용하면 그 미러가 같은 보고를 답한다.
+///
+/// 이것이 S4-5 의 두 번째 절반입니다. 링 창 밖에서 켜진 mode 는 저장된 어느 바이트에도 없으므로,
+/// 재생만으로 만든 미러는 세션이 남긴 mode 가 아니라 자기 기본값에 있습니다. 보고를 재생보다 먼저
+/// 적용해야 그 뒤의 바이트가 맞는 화면과 맞는 mode 에 그려집니다.
+pub fn assert_mode_report_restores<M: MirrorUnderTest>() {
+    // 링 용량과 무관하게, mode 를 켠 바이트가 재생에 없는 경우를 그대로 만든다.
+    let mut live = M::new(COLS, ROWS);
+    live.feed(b"\x1b[?2004h\x1b[?1002h\x1b[?1006h\x1b[?1h\x1b=\x1b[?1004h\x1b[?1007h\x1b[?25l");
+    let recorded = live.mode_report();
+
+    let mut restored = M::new(COLS, ROWS);
+    restored.feed(&recorded.apply_bytes());
+    assert_eq!(
+        restored.mode_report(),
+        recorded,
+        "a mirror the report was applied to reports the same modes"
+    );
+
+    // 보고를 적용하지 않은 미러는 같은 답을 내지 않는다. 이것이 없으면 위의 단언은 두 기본값이
+    // 같다는 말일 뿐이다.
+    let untouched = M::new(COLS, ROWS);
+    assert_ne!(
+        untouched.mode_report(),
+        recorded,
+        "the fixture must set modes a fresh mirror does not already have"
+    );
+
+    // alt-screen 은 보고의 일부다. 한 화면의 mode 를 다른 화면에 복원하면 그 뒤의 재생이 틀린
+    // 화면에 그려진다.
+    let mut alt = M::new(COLS, ROWS);
+    alt.feed(b"\x1b[?1049h\x1b[?2004h");
+    let alt_report = alt.mode_report();
+    assert!(alt_report.alt, "the fixture must be on the alternate screen");
+    let mut alt_restored = M::new(COLS, ROWS);
+    alt_restored.feed(&alt_report.apply_bytes());
+    assert_eq!(
+        alt_restored.mode_report(),
+        alt_report,
+        "the alternate screen and its modes are restored together"
+    );
+}
+
 /// 재생 페인트에 실려서는 안 되는 질의 바이트(이중응답 원천 차단).
 const QUERY_BYTES: [&[u8]; 4] = [b"\x1b[c", b"\x1b[>c", b"\x1b[6n", b"\x1b]11;?"];
 

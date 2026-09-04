@@ -258,6 +258,40 @@ impl ModeReport {
         out.into_bytes()
     }
 
+    /// 이 보고의 상태로 만드는 바이트. 새 미러에 재생보다 먼저 먹입니다.
+    ///
+    /// 어느 mode 가 어느 번호인지는 이 계약의 지식입니다. 엔진마다 다시 적으면 엔진 수만큼의 답이
+    /// 생기고, 한 엔진이 하나를 빠뜨려도 아무것도 그것을 말하지 않습니다.
+    ///
+    /// alt-screen 은 마지막에 들어갑니다. 1049 는 화면을 바꾸므로, 그 앞의 mode 는 보고가 기록된
+    /// 화면에 적용되고 그 뒤의 출력이 같은 화면에 재생됩니다.
+    pub fn apply_bytes(&self) -> Vec<u8> {
+        let mut out: Vec<u8> = Vec::new();
+        let mut private = |number: u16, on: bool| {
+            out.extend_from_slice(b"\x1b[?");
+            out.extend_from_slice(number.to_string().as_bytes());
+            out.push(if on { b'h' } else { b'l' });
+        };
+        private(2004, self.modes.bracketed_paste);
+        private(1, self.modes.app_cursor);
+        private(1000, self.modes.mouse_click);
+        private(1002, self.modes.mouse_drag);
+        private(1003, self.modes.mouse_motion);
+        private(1006, self.modes.sgr_mouse);
+        private(1005, self.modes.utf8_mouse);
+        private(1004, self.modes.focus_in_out);
+        private(1007, self.modes.alternate_scroll);
+        private(25, self.modes.show_cursor);
+        private(7, self.modes.line_wrap);
+        // DECKPAM/DECKPNM and IRM are not DEC private modes.
+        out.extend_from_slice(if self.modes.app_keypad { b"\x1b=" } else { b"\x1b>" });
+        out.extend_from_slice(if self.modes.insert { b"\x1b[4h" } else { b"\x1b[4l" });
+        if self.alt {
+            out.extend_from_slice(b"\x1b[?1049h");
+        }
+        out
+    }
+
     pub fn decode(raw: &[u8]) -> Option<Self> {
         let text = std::str::from_utf8(raw).ok()?;
         let mut parts = text.split(' ');
