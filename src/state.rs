@@ -266,23 +266,33 @@ impl ModeReport {
     /// alt-screen 은 마지막에 들어갑니다. 1049 는 화면을 바꾸므로, 그 앞의 mode 는 보고가 기록된
     /// 화면에 적용되고 그 뒤의 출력이 같은 화면에 재생됩니다.
     pub fn apply_bytes(&self) -> Vec<u8> {
+        // 끄는 것을 모두 낸 뒤 켜는 것을 낸다. mouse tracking 과 mouse encoding 은 서로 배타적인
+        // 묶음이라 한 번호를 끄면 같은 묶음의 다른 번호가 함께 꺼지는 엔진이 있다. 섞어서 내면
+        // 뒤의 해제가 앞의 설정을 지운다 — kitty 에서 1002 와 1006 이 그렇게 사라졌다(2026-09-04).
+        let numbered: [(u16, bool); 11] = [
+            (2004, self.modes.bracketed_paste),
+            (1, self.modes.app_cursor),
+            (1000, self.modes.mouse_click),
+            (1002, self.modes.mouse_drag),
+            (1003, self.modes.mouse_motion),
+            (1006, self.modes.sgr_mouse),
+            (1005, self.modes.utf8_mouse),
+            (1004, self.modes.focus_in_out),
+            (1007, self.modes.alternate_scroll),
+            (25, self.modes.show_cursor),
+            (7, self.modes.line_wrap),
+        ];
         let mut out: Vec<u8> = Vec::new();
-        let mut private = |number: u16, on: bool| {
-            out.extend_from_slice(b"\x1b[?");
-            out.extend_from_slice(number.to_string().as_bytes());
-            out.push(if on { b'h' } else { b'l' });
-        };
-        private(2004, self.modes.bracketed_paste);
-        private(1, self.modes.app_cursor);
-        private(1000, self.modes.mouse_click);
-        private(1002, self.modes.mouse_drag);
-        private(1003, self.modes.mouse_motion);
-        private(1006, self.modes.sgr_mouse);
-        private(1005, self.modes.utf8_mouse);
-        private(1004, self.modes.focus_in_out);
-        private(1007, self.modes.alternate_scroll);
-        private(25, self.modes.show_cursor);
-        private(7, self.modes.line_wrap);
+        for on in [false, true] {
+            for (number, wanted) in numbered {
+                if wanted != on {
+                    continue;
+                }
+                out.extend_from_slice(b"\x1b[?");
+                out.extend_from_slice(number.to_string().as_bytes());
+                out.push(if on { b'h' } else { b'l' });
+            }
+        }
         // DECKPAM/DECKPNM and IRM are not DEC private modes.
         out.extend_from_slice(if self.modes.app_keypad { b"\x1b=" } else { b"\x1b>" });
         out.extend_from_slice(if self.modes.insert { b"\x1b[4h" } else { b"\x1b[4l" });
